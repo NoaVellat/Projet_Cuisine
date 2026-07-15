@@ -1,0 +1,10 @@
+# Déploiement Netlify — le GLB optimisé (public/models/poste.glb) est versionné,
+# le build n'a donc pas besoin de Blender ni de gltf-transform.
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[[headers]]
+  for = "/models/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
