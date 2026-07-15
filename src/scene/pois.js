@@ -12,9 +12,9 @@ export const POIS = {
     target: new Vector3(0, 1.55, LAYOUT.entry.z),
   },
   overview: {
-    // Recul suffisant pour cadrer la hotte au-dessus du poste
-    pos: new Vector3(0, 1.65, 3.5),
-    target: new Vector3(0, 1.25, -0.05),
+    // Recul suffisant pour cadrer la hotte ET le piano à gauche
+    pos: new Vector3(-0.15, 1.68, 3.95),
+    target: new Vector3(-0.15, 1.22, -0.05),
   },
   drawers: {
     // Assez de recul pour cadrer les 2 rangées de 3 tiroirs (façade ~2 m, fov 45°)
@@ -38,5 +38,15 @@ export const POIS = {
     // Cadré sur le livre, pas sur le centre de l'étagère
     pos: new Vector3(book.x, shelf.y + 0.15, 0.95),
     target: new Vector3(book.x, shelf.y + 0.05, shelf.z),
+  },
+  // Salles voisines : la caméra franchit le mur (culé par l'arrière) et entre
+  // vraiment dans la pièce — on voit l'intérieur, plus le carrelage.
+  froid: {
+    pos: new Vector3(-(LAYOUT.sideWalls.x + 0.5), 1.5, 1.15),
+    target: new Vector3(-(LAYOUT.sideWalls.x + 1.4), 1.25, 1.35),
+  },
+  salle: {
+    pos: new Vector3(LAYOUT.sideWalls.x + 0.5, 1.5, 1.15),
+    target: new Vector3(LAYOUT.sideWalls.x + 1.4, 1.2, 1.35),
   },
 };

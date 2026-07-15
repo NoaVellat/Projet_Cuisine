@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerformanceMonitor, Environment, Lightformer, Html, useProgress } from '@react-three/drei';
 import { CameraRig } from './scene/CameraRig';
@@ -27,14 +27,20 @@ function Loader() {
   );
 }
 
+const KONAMI = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
+
 export default function App() {
-  const [classic, setClassic] = useState(false);
+  const classic = useSceneStore((s) => s.classic);
+  const setClassic = useSceneStore((s) => s.setClassic);
+  const booting = useSceneStore((s) => s.booting);
+  const lampOn = useSceneStore((s) => s.lampOn);
   const quality = useSceneStore((s) => s.quality);
   const setQuality = useSceneStore((s) => s.setQuality);
   // Écran tactile : DPR plafonné plus bas (budget GPU mobile, cf. brief)
   const coarse = useMemo(() => window.matchMedia('(pointer: coarse)').matches, []);
 
   useEffect(() => {
+    let konamiAt = 0; // position dans la séquence
     const onKey = (e) => {
       if (e.key === 'Escape') goBack();
       // Entrée pousse les portes (seulement hors élément focusé, pour ne pas
@@ -42,6 +48,18 @@ export default function App() {
       if (e.key === 'Enter' && e.target === document.body) {
         const s = useSceneStore.getState();
         if (s.view === 'entry') s.enter();
+      }
+      // Code Konami → « coup de feu » : tous les tiroirs s'ouvrent
+      konamiAt = e.key === KONAMI[konamiAt] ? konamiAt + 1 : e.key === KONAMI[0] ? 1 : 0;
+      if (konamiAt === KONAMI.length) {
+        konamiAt = 0;
+        const s = useSceneStore.getState();
+        if (!s.rush) {
+          s.setRush(true);
+          sfx.bell();
+          setTimeout(() => sfx.bell(), 500);
+          setTimeout(() => s.setRush(false), 4500);
+        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -101,10 +119,13 @@ export default function App() {
             shadow-camera-far={10}
           />
           <directionalLight position={[-2, 1.5, 3]} intensity={0.35} />
-          <pointLight position={[0.85, 1.42, -0.05]} intensity={1.3} color="#ffb066" />
+          <pointLight position={[0.85, 1.42, -0.05]} intensity={lampOn ? 1.3 : 0} color="#ffb066" />
           <pointLight position={[0, 1.85, 0.3]} intensity={0.5} color="#ffd9a0" />
           {/* Applique du couloir : éclaire l'enseigne et les portes à l'arrivée */}
           <pointLight position={[0, 2.3, 5.6]} intensity={1.6} color="#ffc98a" />
+          {/* Salles voisines : lumière froide (chambre froide) et chaude (salle) */}
+          <pointLight position={[-4.2, 2.3, 1.3]} intensity={1.1} color="#9fc4e0" distance={4} />
+          <pointLight position={[4.2, 2.1, 1.3]} intensity={1.3} color="#ffb066" distance={4} />
 
           {/* Env map générée localement (aucun asset réseau) : ce que l'inox reflète */}
           <Environment resolution={64} frames={1}>
@@ -123,6 +144,16 @@ export default function App() {
         <CameraRig />
       </Canvas>
       <Overlay onClassic={() => setClassic(true)} />
+      {booting && (
+        <div className="boot" role="status">
+          <pre className="boot-log">
+{`noa@le-poste:~$ ./portfolio --classic
+[  ok  ] chargement du contenu
+[  ok  ] montage des sections
+[ boot ] ouverture du mode classique…`}
+          </pre>
+        </div>
+      )}
     </>
   );
 }

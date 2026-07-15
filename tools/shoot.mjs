@@ -48,7 +48,7 @@ await page.screenshot({ path: `${OUT}0-entry-crossing.png` }); // battants en co
 await new Promise((r) => setTimeout(r, 3200));
 await shot('1-overview');
 
-for (const zone of ['drawers', 'skills', 'pass', 'board', 'shelf']) {
+for (const zone of ['drawers', 'skills', 'pass', 'board', 'shelf', 'froid', 'salle']) {
   await page.evaluate((z) => window.__sceneStore.getState().goFocus(z), zone);
   await new Promise((r) => setTimeout(r, 2200)); // damping ~0.45 → laisser se poser
   await shot(`2-focus-${zone}`);
@@ -64,6 +64,11 @@ for (const id of ['jeux-videops', 'my-notion']) {
   await new Promise((r) => setTimeout(r, 2200));
   await shot(`3-detail-${id}`);
 }
+
+// Mode classique (bascule DOM, hors WebGL)
+await page.evaluate(() => window.__sceneStore.getState().setClassic(true));
+await new Promise((r) => setTimeout(r, 500));
+await page.screenshot({ path: `${OUT}4-classic.png`, fullPage: false });
 
 await browser.close();
 console.log('OK — captures dans', OUT);

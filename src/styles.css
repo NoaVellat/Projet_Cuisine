@@ -92,13 +92,20 @@ canvas {
   border-radius: 4px;
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.12s, box-shadow 0.15s;
 }
 
 .btn:hover,
 .btn:focus-visible {
   background: var(--copper);
   color: #16130f;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 16px rgba(184, 115, 51, 0.3);
+}
+
+.btn:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: none;
 }
 
 .hint {
@@ -221,19 +228,195 @@ canvas {
 /* ---------- Ticket (fiche projet / panneaux) ---------- */
 
 .ticket {
-  width: 280px;
+  position: relative;
+  width: 290px;
   max-height: 76vh;
   overflow-y: auto;
   animation: ticket-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.15);
-  background: var(--paper);
+  /* papier thermique : léger dégradé + fines lignes d'impression */
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.016) 0 1px, transparent 1px 3px),
+    linear-gradient(160deg, #f8f3e8 0%, var(--paper) 55%, #ece5d4 100%);
   color: #23201b;
   font-family: var(--mono);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   line-height: 1.45;
-  padding: 16px 18px;
-  border-top: 3px dashed var(--copper);
-  border-bottom: 3px dashed var(--copper);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  padding: 14px 18px 12px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  /* bords dentelés haut et bas, comme un ticket déchiré à la barre */
+  clip-path: polygon(
+    0% 6px, 3% 0%, 6% 6px, 9% 0%, 12% 6px, 15% 0%, 18% 6px, 21% 0%, 24% 6px,
+    27% 0%, 30% 6px, 33% 0%, 36% 6px, 39% 0%, 42% 6px, 45% 0%, 48% 6px,
+    51% 0%, 54% 6px, 57% 0%, 60% 6px, 63% 0%, 66% 6px, 69% 0%, 72% 6px,
+    75% 0%, 78% 6px, 81% 0%, 84% 6px, 87% 0%, 90% 6px, 93% 0%, 96% 6px, 99% 0%,
+    100% 6px, 100% calc(100% - 6px), 97% 100%, 94% calc(100% - 6px), 91% 100%,
+    88% calc(100% - 6px), 85% 100%, 82% calc(100% - 6px), 79% 100%,
+    76% calc(100% - 6px), 73% 100%, 70% calc(100% - 6px), 67% 100%,
+    64% calc(100% - 6px), 61% 100%, 58% calc(100% - 6px), 55% 100%,
+    52% calc(100% - 6px), 49% 100%, 46% calc(100% - 6px), 43% 100%,
+    40% calc(100% - 6px), 37% 100%, 34% calc(100% - 6px), 31% 100%,
+    28% calc(100% - 6px), 25% 100%, 22% calc(100% - 6px), 19% 100%,
+    16% calc(100% - 6px), 13% 100%, 10% calc(100% - 6px), 7% 100%,
+    4% calc(100% - 6px), 1% 100%, 0% calc(100% - 6px)
+  );
+}
+
+/* En-tête de maison */
+.ticket-head {
+  text-align: center;
+  border-bottom: 3px double #23201b;
+  padding: 4px 0 8px;
+  margin-bottom: 10px;
+}
+
+.ticket-brand {
+  margin: 0 0 6px;
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.ticket-num {
+  position: absolute;
+  top: 16px;
+  right: 12px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+/* Tampon encreur */
+.stamp {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 2px solid #a34e1b;
+  color: #a34e1b;
+  border-radius: 3px;
+  transform: rotate(-2.5deg);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 4px 0 8px;
+}
+
+.stamp-green {
+  border-color: #3c7a45;
+  color: #3c7a45;
+  transform: rotate(1.5deg);
+}
+
+/* Pastilles d'ingrédients (stack) */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.chip {
+  border: 1px solid var(--copper);
+  color: #7c3f10;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  background: rgba(184, 115, 51, 0.07);
+}
+
+/* Lignes de réservation */
+.contact-list {
+  margin: 8px 0;
+}
+
+.contact-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: 5px 0;
+  border-bottom: 1px dotted #b9ab90;
+  font-size: 0.7rem;
+}
+
+.contact-k {
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+.contact-row a {
+  text-align: right;
+  word-break: break-all;
+}
+
+/* Parcours : timeline à points */
+.timeline {
+  list-style: none;
+  margin: 8px 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--copper);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.timeline li {
+  position: relative;
+}
+
+.timeline li::before {
+  content: '';
+  position: absolute;
+  left: -19px;
+  top: 4px;
+  width: 8px;
+  height: 8px;
+  background: var(--copper);
+  border-radius: 50%;
+}
+
+.timeline strong {
+  display: block;
+  color: #a34e1b;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+}
+
+.timeline-role {
+  font-weight: 700;
+}
+
+/* Code-barres et pied de ticket */
+.barcode {
+  margin-top: 12px;
+  height: 24px;
+  background: repeating-linear-gradient(
+    90deg,
+    #23201b 0 2px, transparent 2px 4px,
+    #23201b 4px 5px, transparent 5px 9px,
+    #23201b 9px 12px, transparent 12px 14px,
+    #23201b 14px 15px, transparent 15px 19px
+  );
+  opacity: 0.85;
+}
+
+.ticket-foot {
+  text-align: center;
+  font-size: 0.56rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  margin: 6px 0 0;
+}
+
+.ticket-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 /* Bon de commande en mode transform (posé sur le tiroir) : pas de limite
@@ -257,12 +440,10 @@ canvas {
 }
 
 .ticket h2 {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 0.95rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 1px dotted #23201b;
-  padding-bottom: 6px;
+  letter-spacing: 0.08em;
 }
 
 .ticket h3 {
@@ -300,9 +481,9 @@ canvas {
 }
 
 .ticket-kicker {
-  margin: 0 0 2px;
-  font-size: 0.68rem;
-  letter-spacing: 0.16em;
+  margin: 0 0 3px;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #8a4d16;
 }
@@ -356,90 +537,612 @@ canvas {
 .bac-tabs button {
   flex: 1;
   border: 1px solid #23201b;
+  border-radius: 3px;
   background: transparent;
   font: inherit;
   font-size: 0.62rem;
-  padding: 4px 2px;
+  font-weight: 700;
+  padding: 5px 2px;
   cursor: pointer;
   letter-spacing: 0.04em;
+  transition: transform 0.12s, box-shadow 0.15s;
 }
 
-.bac-tabs button.on,
 .bac-tabs button:hover {
-  background: var(--copper);
-  border-color: var(--copper);
-  color: #16130f;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+}
+
+.bac-tabs button.on {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25) inset;
 }
 
 .btn-icon {
   padding: 8px 10px;
 }
 
-/* ---------- Mode classique ---------- */
+/* ---------- Galerie (chambre froide) & Carte (salle) dans les tickets ---------- */
 
-.classic {
-  height: 100%;
-  overflow-y: auto;
-  padding: 32px clamp(16px, 8vw, 96px);
+.gallery {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 8px 0;
 }
 
-.classic-header {
+.gallery-item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: baseline;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--copper);
-  padding-bottom: 16px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--copper);
+  border-radius: 4px;
+  text-decoration: none;
+  color: #23201b;
+  background: rgba(184, 115, 51, 0.06);
+  transition: background 0.12s, transform 0.12s;
 }
 
-.classic-header h1 {
-  margin: 0;
-  font-size: 1.4rem;
+.gallery-item:hover {
+  background: var(--copper);
+  color: #fdf6ec;
+  transform: translateY(-2px);
 }
 
-.classic-header p {
-  margin: 4px 0 0;
+.gallery-num {
+  font-size: 0.6rem;
+  opacity: 0.55;
+}
+
+.gallery-title {
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.gallery-tech {
+  font-size: 0.6rem;
   opacity: 0.7;
 }
 
-.classic-header nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 14px;
-  align-items: center;
+.carte {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
 }
 
-.classic-header a {
+.carte li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px dotted #b9ab90;
+}
+
+.carte li span {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.carte li em {
+  text-align: right;
+  opacity: 0.75;
+  font-size: 0.72rem;
+}
+
+/* ---------- Overlay de boot du laptop ---------- */
+
+.boot {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #05070a;
+  animation: boot-fade 0.2s ease;
+}
+
+.boot-log {
+  color: #58e07a;
+  font-family: var(--mono);
+  font-size: clamp(0.7rem, 2.5vw, 0.95rem);
+  line-height: 1.9;
+  margin: 0;
+  border-left: 2px solid #58e07a55;
+  padding-left: 16px;
+  animation: boot-type 1s steps(1) both;
+}
+
+@keyframes boot-fade {
+  from { opacity: 0; }
+}
+
+@keyframes boot-type {
+  from { opacity: 0.2; }
+  to { opacity: 1; }
+}
+
+/* ---------- Mode classique — « La Carte » ---------- */
+
+.cl {
+  --front: #c0392b;
+  --back: #5a8a3c;
+  --devops: #c8a636;
+  --mern: #9a8256;
+  --soft: #c9762e;
+  height: 100%;
+  overflow-y: auto;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(184, 115, 51, 0.12), transparent),
+    var(--bg);
   color: var(--ink);
+  scroll-behavior: smooth;
+}
+
+.cl a {
+  color: var(--ink);
+}
+
+/* Nav collante */
+.cl-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px clamp(16px, 6vw, 72px);
+  background: rgba(20, 20, 23, 0.82);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(184, 115, 51, 0.3);
+}
+
+.cl-logo {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+
+.cl-logo span {
+  font-weight: 400;
+  opacity: 0.55;
+  font-size: 0.8rem;
+  margin-left: 6px;
+}
+
+.cl-nav nav {
+  display: none;
+  gap: 22px;
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+}
+
+.cl-nav nav a {
+  text-decoration: none;
+  opacity: 0.8;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 2px;
+}
+
+.cl-nav nav a:hover {
+  opacity: 1;
+  border-color: var(--copper);
+}
+
+.cl-nav-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+@media (min-width: 860px) {
+  .cl-nav nav { display: flex; }
+  .cl-nav-actions { margin-left: 0; }
+}
+
+.cl-btn {
+  appearance: none;
+  border: 1px solid var(--copper);
+  background: var(--copper);
+  color: #16130f;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 0.12s, box-shadow 0.15s, background 0.15s;
+}
+
+.cl-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(184, 115, 51, 0.35);
+}
+
+.cl-btn-ghost {
+  background: transparent;
+  color: var(--ink);
+}
+
+.cl-btn-lg {
+  font-size: 0.95rem;
+  padding: 12px 24px;
+}
+
+/* Hero */
+.cl-hero {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: clamp(48px, 10vw, 110px) clamp(16px, 6vw, 72px) 40px;
+  text-align: center;
+}
+
+.cl-kicker {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #6fbf7e;
+  margin: 0 0 18px;
+}
+
+.cl-hero h1 {
+  margin: 0;
+  font-size: clamp(2.4rem, 9vw, 4.6rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.cl-role {
+  font-family: var(--mono);
+  color: var(--copper);
+  margin: 14px 0 0;
+  font-size: 1rem;
+}
+
+.cl-pitch {
+  max-width: 620px;
+  margin: 18px auto 0;
+  font-size: 1.08rem;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+
+.cl-hero-cta {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 30px 0 40px;
+}
+
+.cl-facts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(20px, 6vw, 56px);
+  list-style: none;
+  padding: 26px 0 0;
+  margin: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+
+.cl-facts strong {
+  display: block;
+  font-size: 1.7rem;
+  color: var(--copper);
+}
+
+/* Sections */
+.cl-section {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: clamp(40px, 8vw, 80px) clamp(16px, 6vw, 72px);
+}
+
+.cl-section-alt {
+  max-width: none;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.cl-section-alt > * {
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.cl-shead {
+  margin-bottom: 32px;
+}
+
+.cl-snum {
+  font-family: var(--mono);
+  color: var(--copper);
+  font-size: 0.9rem;
+  letter-spacing: 0.2em;
+}
+
+.cl-shead h2 {
+  margin: 6px 0 0;
+  font-size: clamp(1.5rem, 4vw, 2.1rem);
+  letter-spacing: -0.01em;
+}
+
+.cl-shead p {
+  margin: 8px 0 0;
+  opacity: 0.65;
+}
+
+/* La carte — plats */
+.cl-menu {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
+}
+
+.cl-dish {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.cl-dish:hover {
+  transform: translateY(-3px);
+  border-color: var(--copper);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
+}
+
+.cl-dish-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.cl-dish-course {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--copper);
+}
+
+.cl-dish-num {
+  font-size: 1.6rem;
+  font-weight: 800;
+  opacity: 0.12;
+}
+
+.cl-dish h3 {
+  margin: 6px 0 10px;
+  font-size: 1.2rem;
+}
+
+.cl-dish h3 a {
+  text-decoration: none;
+}
+
+.cl-dish h3 a:hover {
+  color: var(--copper);
+}
+
+.cl-dish-note {
+  font-style: italic;
+  opacity: 0.75;
+  border-left: 2px solid var(--copper);
+  padding-left: 10px;
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.cl-dish-desc {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  opacity: 0.82;
+}
+
+.cl-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cl-tags li {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  padding: 3px 10px;
+  border: 1px solid rgba(184, 115, 51, 0.5);
+  border-radius: 999px;
+  color: #d79b62;
+}
+
+.cl-more {
+  display: inline-block;
+  margin-top: 26px;
+  font-family: var(--mono);
+  color: var(--copper);
   text-decoration: none;
   border-bottom: 1px dotted var(--copper);
 }
 
-.classic section {
-  margin: 40px 0;
-  max-width: 640px;
+/* Les ingrédients — bacs colorés */
+.cl-bacs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
 }
 
-.classic h2 {
-  color: var(--copper);
-  font-size: 1.1rem;
-  text-transform: uppercase;
+.cl-bac {
+  border-left: 4px solid var(--copper);
+  padding: 4px 0 4px 18px;
+}
+
+.cl-bac[data-bac='0'] { border-color: var(--front); }
+.cl-bac[data-bac='1'] { border-color: var(--back); }
+.cl-bac[data-bac='2'] { border-color: var(--devops); }
+.cl-bac[data-bac='3'] { border-color: var(--mern); }
+.cl-bac[data-bac='4'] { border-color: var(--soft); }
+
+.cl-bac h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 1rem;
+}
+
+.cl-bac-tag {
+  font-family: var(--mono);
+  font-size: 0.62rem;
   letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.classic-card {
-  border-left: 2px solid var(--copper);
+.cl-bac[data-bac='0'] .cl-bac-tag { background: var(--front); color: #fff; }
+.cl-bac[data-bac='1'] .cl-bac-tag { background: var(--back); color: #fff; }
+.cl-bac[data-bac='2'] .cl-bac-tag { background: var(--devops); color: #241f10; }
+.cl-bac[data-bac='3'] .cl-bac-tag { background: var(--mern); color: #fff; }
+.cl-bac[data-bac='4'] .cl-bac-tag { background: var(--soft); color: #fff; }
+
+/* Le chef */
+.cl-chef {
+  display: grid;
+  gap: 40px;
+}
+
+@media (min-width: 800px) {
+  .cl-chef { grid-template-columns: 1.2fr 1fr; }
+}
+
+.cl-chef-text p {
+  line-height: 1.65;
+  opacity: 0.88;
+}
+
+.cl-chef blockquote {
+  margin: 20px 0 0;
   padding-left: 16px;
-  margin: 20px 0;
+  border-left: 3px solid var(--copper);
+  font-style: italic;
+  font-size: 1.1rem;
 }
 
-.classic-card .tech {
+.cl-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-left: 2px solid rgba(184, 115, 51, 0.4);
+}
+
+.cl-timeline li {
+  position: relative;
+  display: flex;
+  gap: 14px;
+  padding: 0 0 22px 20px;
+}
+
+.cl-timeline li::before {
+  content: '';
+  position: absolute;
+  left: -7px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--copper);
+}
+
+.cl-tl-year {
+  font-family: var(--mono);
+  color: var(--copper);
+  font-size: 0.8rem;
+  min-width: 62px;
+}
+
+.cl-timeline strong {
+  display: block;
+}
+
+.cl-tl-sub {
+  display: block;
+  opacity: 0.7;
+  font-size: 0.88rem;
+}
+
+.cl-timeline em {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  opacity: 0.6;
+}
+
+/* Réservations */
+.cl-contact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.cl-contact a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  text-decoration: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.cl-contact a:hover {
+  border-color: var(--copper);
+  background: rgba(184, 115, 51, 0.08);
+}
+
+.cl-contact a span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(184, 115, 51, 0.18);
+  color: var(--copper);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.cl-contact-cv {
+  background: rgba(184, 115, 51, 0.12);
+}
+
+/* Footer */
+.cl-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px clamp(16px, 6vw, 72px) 60px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-family: var(--mono);
   font-size: 0.8rem;
-  opacity: 0.7;
-}
-
-.classic a {
-  color: var(--ink);
+  opacity: 0.75;
 }

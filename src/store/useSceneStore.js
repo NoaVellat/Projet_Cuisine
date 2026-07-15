@@ -8,9 +8,21 @@ export const useSceneStore = create((set) => ({
   quality: 'high',         // 'high' | 'low' — piloté par PerformanceMonitor
   bacIndex: 0,             // bac sélectionné dans la saladette (zone skills)
   muted: false,            // bruitages (initialisés au premier geste)
+  classic: false,          // mode classique (bouton HUD ou laptop easter egg)
+  booting: false,          // séquence de boot du laptop avant le mode classique
+  lampOn: true,            // lampe du passe (cliquable)
+  rush: false,             // « coup de feu » : code Konami → tous les tiroirs
   enter: () => set({ view: 'overview' }),   // pousse les portes battantes
   setBac: (bacIndex) => set({ bacIndex }),
   setMuted: (muted) => set({ muted }),
+  setClassic: (classic) => set({ classic }),
+  // Le laptop « boote » (overlay ~1.1 s) puis bascule en mode classique
+  bootClassic: () => {
+    set({ booting: true });
+    setTimeout(() => set({ booting: false, classic: true }), 1100);
+  },
+  toggleLamp: () => set((s) => ({ lampOn: !s.lampOn })),
+  setRush: (rush) => set({ rush }),
   goOverview: () => set({ view: 'overview', zoneId: null, projectId: null }),
   goFocus: (zoneId) => set({ view: 'focus', zoneId, projectId: null }),
   goDetail: (projectId) => set({ view: 'detail', projectId }),

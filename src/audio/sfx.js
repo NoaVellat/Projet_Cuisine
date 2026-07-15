@@ -86,9 +86,82 @@ export const sfx = {
     if (!ctx) return;
     playNoise({ dur: 0.06, type: 'highpass', f0: 2400, f1: 3200, gain: 0.14 });
   },
+  // Xylophone de casseroles : partiels inharmoniques = son métallique
+  potNote(i) {
+    if (!ctx) return;
+    const freqs = [392, 466.16, 523.25, 622.25]; // sol · la♯ · do · ré♯
+    const f = freqs[i] ?? 440;
+    const t = ctx.currentTime;
+    for (const [mult, g0, dur] of [[1, 0.2, 1.1], [2.76, 0.07, 0.4], [5.4, 0.025, 0.15]]) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = f * mult;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(g0, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(g).connect(master);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    }
+    playNoise({ dur: 0.03, type: 'highpass', f0: 3200, f1: 2200, gain: 0.1 });
+  },
+  // Bocaux = timbre « verre » : sinus purs plus aigus, longue traîne cristalline
+  glassNote(i) {
+    if (!ctx) return;
+    const freqs = [880, 1174.66]; // la5 · ré6
+    const f = freqs[i] ?? 988;
+    const t = ctx.currentTime;
+    for (const [mult, g0, dur] of [[1, 0.14, 1.8], [3.01, 0.04, 0.9], [6.1, 0.02, 0.5]]) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.value = f * mult;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(g0, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(g).connect(master);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    }
+  },
+  // La marmite : gros bouillon
+  blup() {
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    const g = ctx.createGain();
+    const t = ctx.currentTime;
+    osc.frequency.setValueAtTime(220, t);
+    osc.frequency.exponentialRampToValueAtTime(70, t + 0.18);
+    g.gain.setValueAtTime(0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    osc.connect(g).connect(master);
+    osc.start(t);
+    osc.stop(t + 0.22);
+    playNoise({ dur: 0.12, f0: 600, f1: 200, gain: 0.1 });
+  },
+  // Le canard de debug
+  quack() {
+    if (!ctx) return;
+    const coin = (delay) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      const g = ctx.createGain();
+      const t = ctx.currentTime + delay;
+      osc.frequency.setValueAtTime(360, t);
+      osc.frequency.exponentialRampToValueAtTime(190, t + 0.11);
+      g.gain.setValueAtTime(0.0001, ctx.currentTime);
+      g.gain.setValueAtTime(0.14, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.13);
+      osc.connect(g).connect(master);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    };
+    coin(0);
+    coin(0.16);
+  },
 };
 
-// Ambiance : souffle grave continu de hotte + très léger frémissement
+// Ambiance : souffle grave continu de hotte + mijotage de la marmite
 function startAmbience() {
   const src = ctx.createBufferSource();
   src.buffer = noiseBuffer(3, true);
@@ -100,4 +173,13 @@ function startAmbience() {
   g.gain.value = 0.05;
   src.connect(filter).connect(g).connect(master);
   src.start();
+
+  // Petites bulles aléatoires, très discrètes — la marmite frémit
+  const simmer = () => {
+    if (Math.random() < 0.75) {
+      playNoise({ dur: 0.07, type: 'bandpass', f0: 300 + Math.random() * 500, f1: 150, q: 4, gain: 0.035 });
+    }
+    setTimeout(simmer, 250 + Math.random() * 600);
+  };
+  simmer();
 }

@@ -14,6 +14,15 @@ const HOVER_LABELS = {
   ...Object.fromEntries(ZONES.map((z) => [z.id, z.label])),
   cv: 'Ticket CV — imprimer',
   entry: 'Pousser les portes',
+  laptop: 'Le portable du chef — mode classique',
+  duck: '🦆 Canard de debug — expliquez-lui votre bug',
+  lamp: 'La lampe du passe',
+  pot: '🍲 Ça mijote…',
+  notes: '🎵 La batterie — jouez un air (métal)',
+  glass: '🎵 Les bocaux — timbre cristal',
+  veg: '🔪 La mise en place — un légume, une stack',
+  froid: '🧊 Chambre froide — la galerie des projets',
+  salle: '🍽️ La salle — entrez, la carte vous attend',
 };
 
 export function Overlay({ onClassic }) {
@@ -24,6 +33,7 @@ export function Overlay({ onClassic }) {
   const enter = useSceneStore((s) => s.enter);
   const muted = useSceneStore((s) => s.muted);
   const setMuted = useSceneStore((s) => s.setMuted);
+  const rush = useSceneStore((s) => s.rush);
 
   return (
     <>
@@ -79,7 +89,9 @@ export function Overlay({ onClassic }) {
           </button>
         ) : (
           <span className="hint">
-            {HOVER_LABELS[hovered] ?? 'Cliquez une zone du poste · Échap pour revenir'}
+            {rush
+              ? '🔥 Coup de feu ! Service !'
+              : HOVER_LABELS[hovered] ?? 'Cliquez une zone du poste · Échap pour revenir'}
           </span>
         )}
       </footer>
