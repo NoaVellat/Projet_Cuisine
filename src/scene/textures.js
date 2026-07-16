@@ -9,7 +9,9 @@ function makeCanvasTexture(draw, size = 256) {
   const tex = new CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = RepeatWrapping;
   tex.colorSpace = SRGBColorSpace;
-  tex.anisotropy = 4;
+  // 16 : les carrelages vus en angle rasant (murs latéraux depuis l'entrée)
+  // restent nets au loin au lieu de baver
+  tex.anisotropy = 16;
   return tex;
 }
 
@@ -52,6 +54,9 @@ export function makeTerminal() {
   const tex = new CanvasTexture(canvas);
   tex.colorSpace = SRGBColorSpace;
   tex.flipY = false;
+  // L'écran est incliné et souvent vu de loin : sans anisotropie il bave,
+  // et les mips adoucissent le texte au lieu de scintiller
+  tex.anisotropy = 8;
 
   const SCRIPT = [
     'noa@le-poste:~$ whoami',
@@ -95,7 +100,9 @@ export function makeTerminal() {
       ctx.fillStyle = '#58e07a';
       ctx.fillRect(cursorX, Math.min(y, s - 46) - 20, 14, 24);
     }
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+    // Scanlines discrètes : à 0.22 elles créaient un moiré marqué dès qu'on
+    // s'éloignait (interférence avec la grille de pixels à la minification)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.09)';
     for (let yy = 0; yy < s; yy += 6) ctx.fillRect(0, yy, s, 2);
     ctx.restore();
     tex.needsUpdate = true;

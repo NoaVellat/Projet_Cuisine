@@ -39,13 +39,19 @@ def srgb(hexcode):
 
 # ---------- matériaux ----------
 
-def make_mat(name, color, rough=0.5, metal=0.0, emissive=None, strength=0.0):
+def make_mat(name, color, rough=0.5, metal=0.0, emissive=None, strength=0.0, alpha=1.0):
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     bsdf = m.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = (*srgb(color), 1)
+    bsdf.inputs["Base Color"].default_value = (*srgb(color), alpha)
     bsdf.inputs["Roughness"].default_value = rough
     bsdf.inputs["Metallic"].default_value = metal
+    if alpha < 1.0:
+        # Transparence exportée en alphaMode BLEND côté glTF (three.js : material
+        # transparent) → on voit à travers (hublots des portes).
+        bsdf.inputs["Alpha"].default_value = alpha
+        m.blend_method = "BLEND"
+        m.use_backface_culling = False
     if emissive:
         key = "Emission Color" if "Emission Color" in bsdf.inputs else "Emission"
         bsdf.inputs[key].default_value = (*srgb(emissive), 1)
@@ -209,6 +215,34 @@ def frustum(name, x, y_bottom, z, w1, d1, w2, d2, h, material):
     return o
 
 
+def knife_blade(name, x, y, z, length, material, thickness=0.004):
+    """Lame de couteau de chef : silhouette effilée à plat (bmesh) + épaisseur.
+    Construite dans le plan horizontal (Blender XY), pointe vers +x three.js."""
+    L = length
+    pts = [
+        (0.0, 0.019), (L * 0.5, 0.017), (L * 0.82, 0.011), (L, 0.001),
+        (L * 0.8, -0.012), (L * 0.5, -0.018), (L * 0.2, -0.019), (0.0, -0.018),
+    ]
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    verts = [bm.verts.new((px, py, 0.0)) for px, py in pts]
+    bm.faces.new(verts)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+    o = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(o)
+    o.location = loc(x, y, z)
+    solid = o.modifiers.new("solidify", "SOLIDIFY")
+    solid.thickness = thickness
+    solid.offset = 0
+    bev = o.modifiers.new("bevel", "BEVEL")
+    bev.width = 0.0012
+    bev.segments = 1
+    o.data.materials.append(material)
+    return o
+
+
 def join(name, parts):
     """Fusionne des objets ; l'origine et le nom sont ceux du premier."""
     bpy.ops.object.select_all(action="DESELECT")
@@ -361,7 +395,13 @@ MAT["flame"] = make_mat("flame", "#ff9540", 0.6, 0.0, "#ff7a20", 2.0)
 MAT["door_paint"] = make_mat("door_paint", "#454b52", 0.6, 0.15)
 MAT["wall_paint"] = make_mat("wall_paint", "#2b3036", 0.85)
 MAT["glass"] = make_mat("glass", "#12161a", 0.08, 0.4)
+# Verre de hublot RÉELLEMENT transparent : on voit la cuisine à travers les
+# portes battantes. Alpha très bas + rugosité minimale (verre quasi clair, le
+# reflet se réduit à un petit éclat net au lieu d'un voile laiteux opaque).
+MAT["door_window"] = make_mat("door_window", "#e4eef4", 0.04, 0.0, alpha=0.12)
 MAT["rubber"] = make_mat("rubber", "#17181b", 0.85)
+MAT["knife_steel"] = make_mat("knife_steel", "#d3d7dc", 0.18, 0.9)
+MAT["knife_handle"] = make_mat("knife_handle", "#2a2c30", 0.55, 0.1)
 
 RAIL_Z = -0.41  # barres murales, 4 cm devant le mur
 
@@ -460,28 +500,36 @@ join("props_deco", props)
 # stack (même couleur que le bac correspondant). Cliquer = ouvrir la famille.
 BILLOT_TOP = TOP_Y + BT
 
-# Le couteau du chef — objet séparé, animé côté R3F (il hache en boucle)
+# Le couteau du chef — objet séparé, animé côté R3F (il hache en boucle).
+# Lame effilée (bmesh) posée à plat au fond du billot, manche galbé côté gauche.
+KN_HEEL, KN_Z, KN_Y = -0.60, 0.12, BILLOT_TOP + 0.004
 knife = [
-    box("knife_blade", -0.47, BILLOT_TOP + 0.012, 0.1, 0.16, 0.006, 0.03, MAT["inox_bright"], bevel=0, rot=(0, 0, 0.18)),
-    box("knife_handle", -0.59, BILLOT_TOP + 0.014, 0.12, 0.085, 0.016, 0.022, MAT["iron"], bevel=0.003, rot=(0, 0, 0.18)),
+    knife_blade("knife_blade", KN_HEEL, KN_Y, KN_Z, 0.18, MAT["knife_steel"]),
+    cyl("knife_bolster", KN_HEEL - 0.006, KN_Y + 0.012, KN_Z, 0.017, 0.022, MAT["knife_steel"], axis="x", vertices=14),
+    cyl("knife_handle", KN_HEEL - 0.075, KN_Y + 0.012, KN_Z, 0.016, 0.11, MAT["knife_handle"], axis="x", vertices=16),
+    sphere("knife_pommel", KN_HEEL - 0.135, KN_Y + 0.012, KN_Z, 0.017, MAT["knife_handle"], scale=(0.7, 1, 1)),
 ]
 join("knife", knife)
 
-veg_tomato = [sphere("tomato_body", -0.63, BILLOT_TOP + 0.042, 0.18, 0.042, MAT["veg_tomato"], scale=(1, 1, 0.9))]
-veg_tomato.append(cyl("tomato_stem", -0.63, BILLOT_TOP + 0.084, 0.18, 0.006, 0.018, MAT["veg_courgette"], vertices=8))
+# La mise en place, bien étalée sur le billot : 5 légumes nettement séparés,
+# tous visibles et cliquables depuis la vue d'ensemble (front z≈0.25, plus gros).
+veg_tomato = [sphere("tomato_body", -0.68, BILLOT_TOP + 0.05, 0.25, 0.05, MAT["veg_tomato"], scale=(1, 1, 0.92))]
+veg_tomato.append(cyl("tomato_stem", -0.68, BILLOT_TOP + 0.098, 0.25, 0.006, 0.02, MAT["veg_courgette"], vertices=8))
 join("zone_veg_0", veg_tomato)
 
-veg_courgette = [cyl("courgette_body", -0.47, BILLOT_TOP + 0.027, 0.25, 0.027, 0.16, MAT["veg_courgette"], axis="x", vertices=16)]
-for k, dx in enumerate((0.11, 0.145)):
-    veg_courgette.append(cyl(f"courgette_slice_{k}", -0.47 + dx, BILLOT_TOP + 0.026, 0.25, 0.026, 0.007,
-                             MAT["veg_courgette_in"], axis="x", vertices=16))
+join("zone_veg_3", [sphere("onion_body", -0.55, BILLOT_TOP + 0.047, 0.26, 0.047, MAT["veg_onion"], scale=(1, 1, 0.9))])
+
+veg_courgette = [cyl("courgette_body", -0.42, BILLOT_TOP + 0.03, 0.25, 0.03, 0.10, MAT["veg_courgette"], axis="x", vertices=18)]
+for k, dx in enumerate((0.072, 0.098)):
+    veg_courgette.append(cyl(f"courgette_slice_{k}", -0.42 + dx, BILLOT_TOP + 0.03, 0.25, 0.03, 0.008,
+                             MAT["veg_courgette_in"], axis="x", vertices=18))
 join("zone_veg_1", veg_courgette)
 
-join("zone_veg_2", [sphere("lemon_body", -0.35, BILLOT_TOP + 0.03, 0.28, 0.03, MAT["veg_lemon"], scale=(1.3, 1, 1))])
-join("zone_veg_3", [sphere("onion_body", -0.29, BILLOT_TOP + 0.04, 0.16, 0.04, MAT["veg_onion"], scale=(1, 1, 0.9))])
+join("zone_veg_2", [sphere("lemon_body", -0.28, BILLOT_TOP + 0.037, 0.26, 0.037, MAT["veg_lemon"], scale=(1.3, 1, 1))])
 
-bpy.ops.mesh.primitive_cone_add(radius1=0.022, radius2=0.004, depth=0.15, vertices=12,
-                                location=loc(-0.60, BILLOT_TOP + 0.024, 0.28))
+# Carotte couchée, au fond du billot (bien dégagée du couteau)
+bpy.ops.mesh.primitive_cone_add(radius1=0.026, radius2=0.004, depth=0.17, vertices=14,
+                                location=loc(-0.34, BILLOT_TOP + 0.028, 0.13))
 carrot = bpy.context.active_object
 carrot.name = "carrot_body"
 carrot.rotation_euler = (0, 1.5708, 0)
@@ -608,22 +656,11 @@ for hx, hz, hy in [(0, 0, 0.13), (0.03, 0.02, 0.11), (-0.03, -0.01, 0.1), (0.01,
     herb.append(sphere(f"herb_leaf_{hx}_{hz}", S["x"] + 0.42 + hx, plank_top + hy, S["z"] + hz, 0.03, MAT["herb"], scale=(1, 1.2, 1)))
 join("herb_plant", herb)
 
-# ---------- les portes des salles voisines + les salles derrière ----------
+# ---------- la porte de la salle + LA SALLE du restaurant derrière ----------
 
 SW = L["sideWalls"]["x"]
-MAT["screen_cold"] = make_mat("screen_cold", "#183042", 0.3, 0.0, "#2f7db0", 1.4)
 MAT["candle"] = make_mat("candle", "#ffcf87", 0.5, 0.0, "#ff9a3c", 3.0)
 MAT["pendant_glow"] = make_mat("pendant_glow", "#ffd9a0", 0.5, 0.0, "#ffb066", 2.0)
-
-
-def room_shell(name, cx, floor_mat, wall_mat, half_x=1.1, z0=0.2, z1=2.4, ceil=2.6):
-    """Coquille d'une salle voisine (sol, fond, côtés, plafond) en boîtes fines."""
-    zc, zd = (z0 + z1) / 2, z1 - z0
-    box(f"{name}_floor", cx, -0.01, zc, half_x * 2, 0.02, zd, floor_mat, bevel=0)
-    box(f"{name}_back", cx + (half_x if cx > 0 else -half_x), ceil / 2, zc, 0.04, ceil, zd, wall_mat, bevel=0)
-    box(f"{name}_ceil", cx, ceil, zc, half_x * 2, 0.04, zd, wall_mat, bevel=0)
-    box(f"{name}_z0", cx, ceil / 2, z0, half_x * 2, ceil, 0.04, wall_mat, bevel=0)
-    box(f"{name}_z1", cx, ceil / 2, z1, half_x * 2, ceil, 0.04, wall_mat, bevel=0)
 
 
 def side_door(name, sign_text, sgn, panel_mat, hublot=False):
@@ -635,7 +672,7 @@ def side_door(name, sign_text, sgn, panel_mat, hublot=False):
     parts.append(box(f"{name}_panel", dx, 1.05, 1.31, 0.06, 2.0, 0.94, panel_mat, bevel=0.008))
     if hublot:
         parts.append(cyl(f"{name}_hublot_ring", dx - sgn * 0.01, 1.55, 1.31, 0.135, 0.05, MAT["inox_bright"], axis="x", vertices=24))
-        parts.append(cyl(f"{name}_hublot", dx - sgn * 0.02, 1.55, 1.31, 0.12, 0.03, MAT["glass"], axis="x", vertices=24))
+        parts.append(cyl(f"{name}_hublot", dx - sgn * 0.02, 1.55, 1.31, 0.12, 0.03, MAT["door_window"], axis="x", vertices=24))
         parts.append(box(f"{name}_kick", dx - sgn * 0.025, 0.28, 1.31, 0.012, 0.36, 0.82, MAT["inox_bright"], bevel=0))
     else:
         parts.append(box(f"{name}_handle", dx - sgn * 0.06, 1.05, 1.72, 0.05, 0.42, 0.06, MAT["dark_metal"], bevel=0.008))
@@ -648,69 +685,242 @@ def side_door(name, sign_text, sgn, panel_mat, hublot=False):
     return door
 
 
-# CHAMBRE FROIDE (gauche) : galerie des projets — chaque écran = un projet
-side_door("froid", "CHAMBRE FROIDE", -1, MAT["inox_bright"])
-FX = -(SW + 1.05)  # centre de la salle
-room_shell("froid", FX, MAT["frost"], MAT["room_wall"])
-box("froid_light", FX, 2.55, 1.3, 1.6, 0.05, 0.12, MAT["screen_cold"], bevel=0)
-gx = FX - 0.95  # mur du fond de la chambre
-# 6 écrans cliquables (3×2), chacun un projet, avec son numéro gravé
-for r in range(2):
-    box(f"froid_shelf_{r}", FX, 0.86 + r * 0.72, 1.3, 1.7, 0.03, 0.34, MAT["inox_dark"], bevel=0)
-    for c in range(3):
-        i = r * 3 + c
-        zc = 0.78 + c * 0.52
-        screen = [box(f"froid_screen_{i}", gx + 0.03, 1.12 + r * 0.72, zc, 0.02, 0.34, 0.42, MAT["screen_cold"], bevel=0)]
-        frame = box(f"froid_scrframe_{i}", gx + 0.015, 1.12 + r * 0.72, zc, 0.015, 0.4, 0.48, MAT["inox_dark"], bevel=0)
-        num = text3d(f"froid_num_{i}", f"0{i + 1}", 0, 0, 0, 0.11, MAT["copper_text"], extrude=0.004)
-        num.location = loc(gx + 0.05, 1.12 + r * 0.72, zc)
-        num.rotation_euler = (1.5708, 0, -1.5708)  # face au poste (+x)
-        join(f"zone_screen_{i}", [screen[0], frame, num])
-# Ambiance froide : cagettes de bois empilées (les « réserves »)
-crate_cols = ["veg_tomato", "veg_courgette", "veg_lemon", "veg_carrot"]
-for k in range(4):
-    cx, cy, cz = FX + 0.55, 0.14 + (k % 2) * 0.26, 0.7 + (k // 2) * 0.42
-    box(f"froid_crate_{k}", cx, cy, cz, 0.34, 0.22, 0.28, MAT["wood_dark"], bevel=0.006)
-    box(f"froid_crateveg_{k}", cx, cy + 0.13, cz, 0.28, 0.05, 0.22, MAT[crate_cols[k]], bevel=0)
-# Thermomètre au mur (petit détail qui vend la chambre froide)
-box("froid_thermo", gx + 0.03, 1.7, 1.95, 0.02, 0.26, 0.05, MAT["porcelain"], bevel=0)
-cyl("froid_thermo_bulb", gx + 0.04, 1.58, 1.95, 0.018, 0.02, MAT["veg_tomato"], axis="x", vertices=10)
+# ---------- LA SALLE (droite) : la grande salle du restaurant ----------
+# Vraie salle profonde (~5,6 m) vue depuis l'entrée : tapis rouge, allée de
+# lustres, tables rondes dressées côté fenêtres, banquette bordeaux côté
+# droit, pilastres, buffet + grand miroir « LE POSTE » au fond. Le maître
+# d'hôtel accueille au départ de l'allée, pupitre RÉSERVATIONS à ses côtés.
+MAT["salle_wall"] = make_mat("salle_wall", "#ede1cb", 0.9)
+MAT["salle_wall2"] = make_mat("salle_wall2", "#ddcfb2", 0.9)
+MAT["salle_floor"] = make_mat("salle_floor", "#a9743f", 0.5)
+MAT["salle_joint"] = make_mat("salle_joint", "#7c5228", 0.6)
+MAT["salle_wain"] = make_mat("salle_wain", "#6b4429", 0.6)
+MAT["rug"] = make_mat("rug", "#7c2b34", 0.92)
+MAT["rug_edge"] = make_mat("rug_edge", "#b08a3a", 0.9)
+MAT["banquette"] = make_mat("banquette", "#6a2430", 0.45)
+MAT["plant"] = make_mat("plant", "#3f7a44", 0.7)
+MAT["plant_pot"] = make_mat("plant_pot", "#b98a52", 0.55)
+MAT["gold"] = make_mat("gold", "#c9a349", 0.35, 0.75)
+MAT["mirror"] = make_mat("mirror", "#c8d4dc", 0.06, 0.9)
+MAT["window_glow"] = make_mat("window_glow", "#ffe9c4", 0.6, 0.0, "#ffd9a0", 1.6)
+MAT["sconce"] = make_mat("sconce", "#ffe6bf", 0.4, 0.0, "#ffcf87", 4.0)
+for k, art_c in enumerate(("#cbb3d0", "#a9c4b8")):
+    MAT[f"art{k}"] = make_mat(f"art{k}", art_c, 0.85)
 
-# LA SALLE (droite) : salle à manger dressée, ardoise, comptoir, lumière chaude
-side_door("salle", "SALLE", 1, MAT["door_paint"], hublot=True)
-RX = SW + 1.05
-bx = RX + 0.95  # mur du fond de la salle
-room_shell("salle", RX, MAT["wood_dark"], MAT["leather"])
-box("salle_light_bar", RX - 0.3, 2.4, 1.3, 0.04, 0.5, 0.04, MAT["dark_metal"], bevel=0)
-cyl("salle_pendant", RX - 0.3, 2.12, 1.3, 0.12, 0.14, MAT["pendant_glow"], vertices=16)
-# Ardoise du menu, au mur du fond
-box("salle_ardoise_frame", bx - 0.03, 1.6, 1.3, 0.02, 0.72, 0.92, MAT["wood_dark"], bevel=0.006)
-box("salle_ardoise", bx - 0.05, 1.6, 1.3, 0.015, 0.64, 0.84, MAT["slate"], bevel=0)
-mm = text3d("salle_menu_t", "MENU DU JOUR", 0, 0, 0, 0.07, MAT["white_text"], extrude=0.002)
-mm.location = loc(bx - 0.06, 1.86, 1.3)
-mm.rotation_euler = (1.5708, 0, 1.5708)  # face au poste (-x)
-for li, txt in enumerate(["- Front croustillant", "- Back mijote", "- DevOps flambe", "- Projets maison"]):
-    line = text3d(f"salle_menu_{li}", txt, 0, 0, 0, 0.032, MAT["white_text"], extrude=0.001)
-    line.location = loc(bx - 0.06, 1.66 - li * 0.13, 1.3)
-    line.rotation_euler = (1.5708, 0, 1.5708)
-# Comptoir / bar le long du mur avant
-box("salle_bar", RX, 0.5, 2.28, 1.5, 1.0, 0.32, MAT["wood_dark"], bevel=0.008)
-box("salle_bar_top", RX, 1.02, 2.28, 1.6, 0.05, 0.4, MAT["wood"], bevel=0.006)
-for k, tz in enumerate((0.8, 1.7)):
-    cyl(f"salle_tpied_{k}", RX, 0.35, tz, 0.04, 0.7, MAT["dark_metal"], vertices=12)
-    cyl(f"salle_ttop_{k}", RX, 0.71, tz, 0.32, 0.02, MAT["wood"], vertices=28)
-    sphere(f"salle_cloth_{k}", RX, 0.66, tz, 0.34, MAT["tablecloth"], scale=(1, 0.35, 1))
-    cyl(f"salle_plate_{k}", RX, 0.735, tz, 0.1, 0.01, MAT["porcelain"], vertices=22)
-    cyl(f"salle_candle_{k}", RX - 0.16, 0.76, tz, 0.015, 0.07, MAT["porcelain"], vertices=10)
-    sphere(f"salle_flame_{k}", RX - 0.16, 0.81, tz, 0.02, MAT["candle"])
-    cyl(f"salle_wine_{k}", RX + 0.17, 0.83, tz, 0.035, 0.22, MAT["wine"], vertices=14)
-    # verres à pied
-    for gsn in (-1, 1):
-        cyl(f"salle_glass_stem_{k}_{gsn}", RX + 0.1, 0.77, tz + gsn * 0.12, 0.004, 0.06, MAT["glass"], vertices=8)
-        cone(f"salle_glass_bowl_{k}_{gsn}", RX + 0.1, 0.82, tz + gsn * 0.12, 0.028, 0.02, 0.05, MAT["glass"], vertices=12)
+side_door("salle", "LA SALLE", 1, MAT["door_paint"], hublot=True)
+
+RX0 = SW + 0.04   # mur d'entrée, côté salle
+BX = SW + 5.7     # mur du fond → ~5,6 m de profondeur visible
+Z0, Z1 = -0.30, 3.10
+CEIL = 3.05
+CX, CZ = (RX0 + BX) / 2, (Z0 + Z1) / 2
+DEPTH, WIDE = BX - RX0, Z1 - Z0
+AXZ = 1.30        # allée centrale, alignée sur la porte
+
+# Coquille : parquet (lattes filant vers le fond → la perspective se lit),
+# murs crème, plafond à caisson. Le mur d'entrée est percé au gabarit porte.
+box("salle_floor", CX, 0.002, CZ, DEPTH, 0.024, WIDE, MAT["salle_floor"], bevel=0)
+for k, zj in enumerate((-0.06, 0.39, 0.84, 1.76, 2.21, 2.66)):
+    box(f"salle_joint_{k}", CX, 0.015, zj, DEPTH - 0.1, 0.004, 0.014, MAT["salle_joint"], bevel=0)
+box("salle_back", BX + 0.025, CEIL / 2, CZ, 0.05, CEIL, WIDE, MAT["salle_wall"], bevel=0)
+box("salle_side_l", CX, CEIL / 2, Z0 - 0.025, DEPTH, CEIL, 0.05, MAT["salle_wall"], bevel=0)
+box("salle_side_r", CX, CEIL / 2, Z1 + 0.025, DEPTH, CEIL, 0.05, MAT["salle_wall"], bevel=0)
+box("salle_ceil", CX, CEIL + 0.02, CZ, DEPTH + 0.1, 0.04, WIDE + 0.1, MAT["salle_wall"], bevel=0)
+box("salle_ceil_panel", CX, CEIL - 0.005, CZ, DEPTH - 1.4, 0.02, WIDE - 1.2, MAT["salle_wall2"], bevel=0)
+box("salle_front_a", RX0, 1.1, (Z0 + 0.71) / 2, 0.05, 2.2, 0.71 - Z0, MAT["salle_wall"], bevel=0)
+box("salle_front_b", RX0, 1.1, (1.91 + Z1) / 2, 0.05, 2.2, Z1 - 1.91, MAT["salle_wall"], bevel=0)
+box("salle_front_top", RX0, (2.2 + CEIL) / 2, CZ, 0.05, CEIL - 2.2, WIDE, MAT["salle_wall"], bevel=0)
+
+# Soubassement bois + cimaise dorée sur le pourtour
+box("salle_wain_l", CX, 0.44, Z0 + 0.02, DEPTH - 0.06, 0.88, 0.04, MAT["salle_wain"], bevel=0)
+box("salle_wain_r", CX, 0.44, Z1 - 0.02, DEPTH - 0.06, 0.88, 0.04, MAT["salle_wain"], bevel=0)
+box("salle_wain_b", BX - 0.02, 0.44, CZ, 0.04, 0.88, WIDE - 0.06, MAT["salle_wain"], bevel=0)
+box("salle_rail_l", CX, 0.9, Z0 + 0.03, DEPTH - 0.06, 0.03, 0.02, MAT["gold"], bevel=0)
+box("salle_rail_r", CX, 0.9, Z1 - 0.03, DEPTH - 0.06, 0.03, 0.02, MAT["gold"], bevel=0)
+box("salle_rail_b", BX - 0.03, 0.9, CZ, 0.02, 0.03, WIDE - 0.06, MAT["gold"], bevel=0)
+
+# Pilastres + chapiteaux dorés : rythment les murs en travées
+for k, px in enumerate((4.6, 6.0, 7.4)):
+    for s_, zc in ((0, Z0 + 0.055), (1, Z1 - 0.055)):
+        box(f"salle_pil_{k}_{s_}", px, 1.5, zc, 0.16, 3.0, 0.07, MAT["salle_wall2"], bevel=0.004)
+        box(f"salle_cap_{k}_{s_}", px, 2.92, zc, 0.22, 0.06, 0.1, MAT["gold"], bevel=0.004)
+
+# Tapis rouge de l'entrée : file de la porte vers le fond de l'allée
+box("salle_run_edge", 5.35, 0.02, AXZ, 4.0, 0.007, 1.0, MAT["rug_edge"], bevel=0)
+box("salle_run", 5.35, 0.026, AXZ, 3.9, 0.007, 0.88, MAT["rug"], bevel=0)
+
+# Fenêtres à croisillons (mur gauche) : lueur chaude du soir + rideaux bordeaux
+for k, wx in enumerate((5.3, 6.7, 8.1)):
+    box(f"salle_winf_{k}", wx, 1.75, Z0 + 0.05, 0.78, 1.5, 0.035, MAT["gold"], bevel=0.004)
+    box(f"salle_wing_{k}", wx, 1.75, Z0 + 0.06, 0.68, 1.4, 0.03, MAT["window_glow"], bevel=0)
+    box(f"salle_winb_v_{k}", wx, 1.75, Z0 + 0.078, 0.02, 1.4, 0.01, MAT["gold"], bevel=0)
+    for j, wy in enumerate((1.42, 2.08)):
+        box(f"salle_winb_h_{k}_{j}", wx, wy, Z0 + 0.078, 0.68, 0.02, 0.01, MAT["gold"], bevel=0)
     for s_ in (-1, 1):
-        box(f"salle_seat_{k}_{s_}", RX + s_ * 0.02, 0.42, tz + s_ * 0.42, 0.34, 0.04, 0.32, MAT["wood_dark"], bevel=0.004)
-        box(f"salle_back_{k}_{s_}", RX + s_ * 0.17, 0.62, tz + s_ * 0.42, 0.04, 0.42, 0.32, MAT["wood_dark"], bevel=0.004)
+        box(f"salle_curt_{k}_{s_}", wx + s_ * 0.5, 1.3, Z0 + 0.09, 0.16, 2.5, 0.07, MAT["rug"], bevel=0.012)
+    box(f"salle_pelmet_{k}", wx, 2.6, Z0 + 0.09, 1.2, 0.14, 0.08, MAT["rug"], bevel=0.012)
+
+# Tableaux dorés + miroir rond (mur droit, au-dessus de la banquette)
+for k, px in enumerate((5.3, 6.7)):
+    box(f"salle_artf_{k}", px, 1.85, Z1 - 0.055, 0.7, 0.55, 0.035, MAT["gold"], bevel=0.004)
+    box(f"salle_art_{k}", px, 1.85, Z1 - 0.065, 0.6, 0.45, 0.03, MAT[f"art{k}"], bevel=0)
+cyl("salle_rndf", 8.1, 1.85, Z1 - 0.06, 0.26, 0.035, MAT["gold"], axis="z", vertices=28)
+cyl("salle_rnd", 8.1, 1.85, Z1 - 0.075, 0.215, 0.03, MAT["mirror"], axis="z", vertices=28)
+
+# Banquette bordeaux le long du mur droit + ses deux tables nappées
+box("salle_banq_base", 6.05, 0.17, Z1 - 0.21, 3.1, 0.34, 0.34, MAT["salle_wain"], bevel=0.006)
+box("salle_banq_seat", 6.05, 0.39, Z1 - 0.23, 3.14, 0.1, 0.42, MAT["banquette"], bevel=0.02)
+box("salle_banq_back", 6.05, 0.74, Z1 - 0.085, 3.14, 0.72, 0.09, MAT["banquette"], bevel=0.02)
+
+
+def salle_chair(tag, x, z, bx_, bz_):
+    """Chaise bistrot : assise + dossier (décalé de (bx_, bz_)) + 4 pieds."""
+    parts = [box(f"chair_seat_{tag}", x, 0.45, z, 0.36, 0.045, 0.36, MAT["salle_wain"], bevel=0.012)]
+    parts.append(box(
+        f"chair_back_{tag}", x + bx_ * 0.165, 0.73, z + bz_ * 0.165,
+        0.05 if bx_ else 0.36, 0.52, 0.36 if bx_ else 0.05,
+        MAT["salle_wain"], bevel=0.012))
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            parts.append(cyl(f"chair_leg_{tag}_{sx}_{sz}", x + sx * 0.15, 0.215, z + sz * 0.15, 0.014, 0.43, MAT["salle_wain"], vertices=8))
+    return join(f"salle_chair_{tag}", parts)
+
+
+for k, tx in enumerate((5.3, 6.7)):
+    box(f"salle_bt_skirt_{k}", tx, 0.36, 2.38, 0.56, 0.68, 0.54, MAT["tablecloth"], bevel=0.01)
+    box(f"salle_bt_top_{k}", tx, 0.71, 2.38, 0.66, 0.035, 0.64, MAT["tablecloth"], bevel=0.012)
+    cyl(f"salle_bt_plate_{k}", tx, 0.735, 2.38, 0.075, 0.008, MAT["porcelain"], vertices=22)
+    cyl(f"salle_bt_candle_{k}", tx + 0.2, 0.76, 2.38, 0.013, 0.07, MAT["porcelain"], vertices=10)
+    sphere(f"salle_bt_flame_{k}", tx + 0.2, 0.805, 2.38, 0.018, MAT["candle"], subdiv=1)
+    cyl(f"salle_bt_gstem_{k}", tx - 0.18, 0.755, 2.38, 0.005, 0.07, MAT["glass"], vertices=8)
+    cone(f"salle_bt_gbowl_{k}", tx - 0.18, 0.815, 2.38, 0.03, 0.02, 0.055, MAT["glass"], vertices=12)
+    salle_chair(f"b{k}", tx, 2.0, 0, -1)
+
+# Tables rondes dressées côté fenêtres (nappe longue, couverts, bougie)
+for k, (tx, tz) in enumerate(((5.85, 0.5), (7.5, 0.55))):
+    cyl(f"salle_tfoot_{k}", tx, 0.025, tz, 0.17, 0.035, MAT["gold"], vertices=18)
+    cyl(f"salle_tpied_{k}", tx, 0.37, tz, 0.035, 0.66, MAT["gold"], vertices=12)
+    cyl(f"salle_skirt_{k}", tx, 0.4, tz, 0.3, 0.64, MAT["tablecloth"], vertices=24)
+    cyl(f"salle_cloth_{k}", tx, 0.735, tz, 0.37, 0.025, MAT["tablecloth"], vertices=28)
+    for s_ in (-1, 1):
+        cyl(f"salle_plate_{k}_{s_}", tx + s_ * 0.17, 0.752, tz, 0.078, 0.008, MAT["porcelain"], vertices=22)
+        cyl(f"salle_plate2_{k}_{s_}", tx + s_ * 0.17, 0.757, tz, 0.042, 0.005, MAT["gold"], vertices=16)
+    cyl(f"salle_candle_{k}", tx, 0.775, tz, 0.013, 0.08, MAT["porcelain"], vertices=10)
+    sphere(f"salle_flame_{k}", tx, 0.825, tz, 0.018, MAT["candle"], subdiv=1)
+    for gsn in (-1, 1):
+        cyl(f"salle_gstem_{k}_{gsn}", tx + gsn * 0.05, 0.76, tz + 0.2, 0.005, 0.07, MAT["glass"], vertices=8)
+        cone(f"salle_gbowl_{k}_{gsn}", tx + gsn * 0.05, 0.82, tz + 0.2, 0.03, 0.02, 0.055, MAT["glass"], vertices=12)
+    salle_chair(f"r{k}a", tx - 0.6, tz, -1, 0)
+    salle_chair(f"r{k}b", tx + 0.6, tz, 1, 0)
+
+# Trois lustres dorés suspendus BAS au-dessus des TABLES (pas de l'allée :
+# l'axe reste dégagé pour lire l'enseigne du fond) — flaques de lumière
+# chaude sur les nappes, longues chaînes élégantes
+for k, (cx_, cz_) in enumerate(((5.85, 0.5), (7.5, 0.55), (6.0, 2.38))):
+    cyl(f"salle_chain_{k}", cx_, 2.58, cz_, 0.008, 0.94, MAT["dark_metal"], vertices=8)
+    cyl(f"salle_lustre_{k}", cx_, 2.1, cz_, 0.16, 0.03, MAT["gold"], vertices=22)
+    sphere(f"salle_lustre_b_{k}", cx_, 2.05, cz_, 0.05, MAT["gold"], subdiv=1)
+    for b in range(6):
+        a = b * 1.0472
+        lbx, lbz = cx_ + 0.125 * math.cos(a), cz_ + 0.125 * math.sin(a)
+        cyl(f"salle_bougie_{k}_{b}", lbx, 2.15, lbz, 0.011, 0.06, MAT["porcelain"], vertices=8)
+        sphere(f"salle_bulb_{k}_{b}", lbx, 2.195, lbz, 0.026, MAT["pendant_glow"], subdiv=1)
+
+# Le fond de perspective : buffet à bouteilles, grand miroir doré, enseigne
+# « LE POSTE », appliques et plantes en pot dans les coins
+box("salle_buffet", 8.66, 0.5, CZ, 0.42, 1.0, 2.0, MAT["salle_wain"], bevel=0.008)
+box("salle_buffet_top", 8.64, 1.02, CZ, 0.48, 0.04, 2.1, MAT["wood"], bevel=0.006)
+for k, (bz_, mt) in enumerate(((0.75, "bottle_vin"), (1.05, "bottle_oil"), (1.4, "wine"), (1.75, "bottle_vin"), (2.05, "wine"))):
+    cyl(f"salle_btl_{k}", 8.68, 1.15, bz_, 0.03, 0.22, MAT[mt], vertices=12)
+# Grand tableau (paysage naïf : ciel crème, soleil doré, collines) — un vrai
+# miroir ne refléterait que l'envmap sombre de la cuisine (effet ardoise)
+MAT["tab_sky"] = make_mat("tab_sky", "#e8d9b8", 0.9)
+MAT["tab_hill"] = make_mat("tab_hill", "#77804d", 0.85)
+MAT["tab_hill2"] = make_mat("tab_hill2", "#55603a", 0.85)
+MAT["tab_sun"] = make_mat("tab_sun", "#d9a441", 0.6)
+box("salle_mirf", BX - 0.035, 1.85, CZ, 0.04, 1.35, 1.75, MAT["gold"], bevel=0.006)
+box("salle_tab", BX - 0.055, 1.85, CZ, 0.02, 1.21, 1.61, MAT["tab_sky"], bevel=0)
+box("salle_tab_h1", BX - 0.062, 1.58, CZ, 0.012, 0.36, 1.52, MAT["tab_hill"], bevel=0)
+box("salle_tab_h2", BX - 0.066, 1.44, CZ, 0.012, 0.2, 1.52, MAT["tab_hill2"], bevel=0)
+cyl("salle_tab_sun", BX - 0.068, 2.12, 1.0, 0.14, 0.012, MAT["tab_sun"], axis="x", vertices=22)
+nom = text3d("salle_nom", "LE POSTE", 0, 0, 0, 0.16, MAT["gold"], extrude=0.004)
+nom.location = loc(BX - 0.07, 2.84, CZ)
+nom.rotation_euler = (1.5708, 0, -1.5708)
+for k, sz_ in enumerate((0.32, 2.48)):
+    cyl(f"salle_sconce_{k}", BX - 0.07, 1.95, sz_, 0.05, 0.07, MAT["gold"], axis="x", vertices=12)
+    sphere(f"salle_sconce_glow_{k}", BX - 0.13, 1.98, sz_, 0.05, MAT["sconce"], scale=(0.7, 1, 1))
+for k, (plx, plz) in enumerate(((8.4, 0.08), (8.4, 2.72))):
+    plant = [cyl(f"plant_pot_{k}", plx, 0.19, plz, 0.14, 0.36, MAT["plant_pot"], vertices=16)]
+    for lx, ly, lz in [(0, 0.58, 0), (0.12, 0.48, 0.06), (-0.11, 0.5, -0.06), (0.06, 0.64, -0.08), (-0.07, 0.55, 0.1)]:
+        plant.append(sphere(f"plant_leaf_{k}_{lx}_{lz}", plx + lx, 0.19 + ly, plz + lz, 0.15, MAT["plant"], scale=(0.55, 1.7, 0.55)))
+    join(f"salle_plant_{k}", plant)
+
+# Porte-manteau à l'entrée (coin droit)
+cyl("vest_pole", 3.9, 0.85, 2.75, 0.022, 1.66, MAT["salle_wain"], vertices=10)
+cyl("vest_foot", 3.9, 0.02, 2.75, 0.14, 0.04, MAT["salle_wain"], vertices=14)
+sphere("vest_top", 3.9, 1.7, 2.75, 0.03, MAT["gold"], subdiv=1)
+cyl("vest_arm_0", 3.9, 1.58, 2.75, 0.012, 0.34, MAT["gold"], axis="x", vertices=8)
+cyl("vest_arm_1", 3.9, 1.52, 2.75, 0.012, 0.34, MAT["gold"], axis="z", vertices=8)
+
+# Pupitre d'accueil : podium bois, menu ouvert, lampe laiton, plaque dorée.
+# Posé en tête du tapis rouge → il cadre le premier plan gauche et le
+# chevalet RÉSERVATIONS reste dans le champ du POI.
+HX, HZ = 4.55, 1.0
+frustum("host_body", HX, 0.03, HZ, 0.3, 0.26, 0.42, 0.34, 1.0, MAT["salle_wain"])
+box("host_top", HX, 1.05, HZ, 0.48, 0.035, 0.4, MAT["wood"], bevel=0.008)
+box("host_menu_l", HX, 1.085, HZ - 0.065, 0.26, 0.012, 0.13, MAT["leather"], rot=(-0.32, 0, 0), bevel=0)
+box("host_menu_r", HX, 1.085, HZ + 0.065, 0.26, 0.012, 0.13, MAT["leather"], rot=(0.32, 0, 0), bevel=0)
+box("host_page_l", HX, 1.093, HZ - 0.062, 0.23, 0.008, 0.11, MAT["paper"], rot=(-0.32, 0, 0), bevel=0)
+box("host_page_r", HX, 1.093, HZ + 0.062, 0.23, 0.008, 0.11, MAT["paper"], rot=(0.32, 0, 0), bevel=0)
+cyl("host_lamp_stem", HX + 0.15, 1.12, HZ - 0.12, 0.008, 0.12, MAT["gold"], vertices=8)
+cone("host_lamp_shade", HX + 0.15, 1.2, HZ - 0.12, 0.055, 0.025, 0.07, MAT["gold"], vertices=14)
+sphere("host_lamp_glow", HX + 0.15, 1.185, HZ - 0.12, 0.028, MAT["sconce"], subdiv=1)
+# Chevalet doré « RÉSERVATIONS » debout SUR le bord avant du plateau, bien
+# DROIT face à l'entrée (-x) — hors du menu, rien ne se traverse
+box("host_plaque_base", HX - 0.21, 1.085, HZ, 0.022, 0.035, 0.34, MAT["gold"], bevel=0.004)
+plq = text3d("host_plaque", "RÉSERVATIONS", 0, 0, 0, 0.035, MAT["gold"], extrude=0.002)
+plq.location = loc(HX - 0.225, 1.128, HZ)
+plq.rotation_euler = (1.5708, 0, -1.5708)
+
+# Le maître d'hôtel (face à l'entrée, -x) : vraie silhouette — jambes,
+# chaussures, plastron blanc sous gilet cintré, nœud pap, visage (yeux, nez,
+# moustache), bras d'accueil ouvert et torchon plié sur l'avant-bras.
+MAT["waiter_suit"] = make_mat("waiter_suit", "#22242c", 0.55)
+MAT["waiter_shirt"] = make_mat("waiter_shirt", "#f3efe6", 0.75)
+MAT["waiter_skin"] = make_mat("waiter_skin", "#d8a274", 0.6)
+MAT["waiter_hair"] = make_mat("waiter_hair", "#2b2018", 0.7)
+WX, WZ = 6.5, 1.02
+waiter = []
+for s_ in (-1, 1):
+    waiter.append(box(f"waiter_shoe_{s_}", WX - 0.025, 0.055, WZ + s_ * 0.055, 0.16, 0.05, 0.085, MAT["waiter_suit"], bevel=0.008))
+    waiter.append(cyl(f"waiter_leg_{s_}", WX, 0.38, WZ + s_ * 0.055, 0.045, 0.6, MAT["waiter_suit"], vertices=12))
+    waiter.append(sphere(f"waiter_shoulder_{s_}", WX + 0.01, 1.13, WZ + s_ * 0.115, 0.05, MAT["waiter_suit"]))
+    # pans avant du gilet : ne laissent qu'une étroite bande de plastron blanc
+    waiter.append(box(f"waiter_vfront_{s_}", WX - 0.125, 0.89, WZ + s_ * 0.068, 0.02, 0.46, 0.075, MAT["waiter_suit"], bevel=0.004))
+# torse : plastron blanc sous un gilet noir cintré (frustums)
+waiter.append(frustum("waiter_shirtb", WX, 0.65, WZ, 0.19, 0.14, 0.26, 0.17, 0.5, MAT["waiter_shirt"]))
+waiter.append(frustum("waiter_vest", WX + 0.025, 0.66, WZ, 0.21, 0.15, 0.28, 0.18, 0.46, MAT["waiter_suit"]))
+waiter += [
+    box("waiter_bow", WX - 0.128, 1.115, WZ, 0.018, 0.026, 0.06, MAT["waiter_suit"], bevel=0.004),
+    sphere("waiter_btn_0", WX - 0.128, 1.0, WZ, 0.009, MAT["gold"], subdiv=1),
+    sphere("waiter_btn_1", WX - 0.122, 0.9, WZ, 0.009, MAT["gold"], subdiv=1),
+    cyl("waiter_neck", WX, 1.17, WZ, 0.032, 0.07, MAT["waiter_skin"], vertices=10),
+    sphere("waiter_head", WX, 1.31, WZ, 0.095, MAT["waiter_skin"]),
+    sphere("waiter_hair", WX + 0.025, 1.348, WZ, 0.095, MAT["waiter_hair"], scale=(0.95, 0.62, 1.05)),
+    sphere("waiter_nose", WX - 0.093, 1.3, WZ, 0.014, MAT["waiter_skin"], subdiv=1),
+    box("waiter_moustache", WX - 0.089, 1.279, WZ, 0.014, 0.013, 0.058, MAT["waiter_hair"], bevel=0.003),
+    sphere("waiter_eye_l", WX - 0.081, 1.334, WZ - 0.036, 0.012, MAT["waiter_hair"], subdiv=1),
+    sphere("waiter_eye_r", WX - 0.081, 1.334, WZ + 0.036, 0.012, MAT["waiter_hair"], subdiv=1),
+    # bras gauche ouvert en geste d'accueil (vers l'allée), collé à l'épaule
+    cyl("waiter_arm_l", WX, 1.0, WZ - 0.19, 0.028, 0.32, MAT["waiter_suit"], vertices=10, rot=(-0.5, 0, 0)),
+    sphere("waiter_hand_l", WX, 0.865, WZ - 0.295, 0.026, MAT["waiter_skin"], subdiv=1),
+    # bras droit plié, torchon blanc du service sur l'avant-bras
+    cyl("waiter_arm_ru", WX + 0.01, 1.02, WZ + 0.13, 0.028, 0.2, MAT["waiter_suit"], vertices=10),
+    cyl("waiter_arm_rf", WX - 0.1, 0.93, WZ + 0.13, 0.027, 0.26, MAT["waiter_suit"], axis="x", vertices=10),
+    sphere("waiter_hand_r", WX - 0.245, 0.93, WZ + 0.13, 0.026, MAT["waiter_skin"], subdiv=1),
+    box("waiter_torchon", WX - 0.14, 0.91, WZ + 0.135, 0.09, 0.17, 0.045, MAT["tablecloth"], bevel=0.006),
+]
+join("waiter", waiter)
 
 # ---------- l'entrée : cloison + portes battantes au nom du chef ----------
 
@@ -731,9 +941,11 @@ box("partition_top", 0, E["doorH"] + 0.07 + (WH - E["doorH"] - 0.07) / 2, EZ,
 frame_parts = [
     box("frame_top", 0, E["doorH"] + 0.045, EZ, OPEN_HALF * 2 + 0.12, 0.07, 0.16, MAT["inox_dark"]),
 ]
+# Montants rapprochés de la charnière : ils couvrent le liseré (hingeX→OPEN_HALF)
+# de l'ouverture, sinon on voit à travers sur les côtés quand la porte s'ouvre.
 for s in (-1, 1):
-    frame_parts.append(box(f"frame_post_{s}", s * (OPEN_HALF + 0.03), (E["doorH"] + 0.08) / 2, EZ,
-                           0.07, E["doorH"] + 0.08, 0.16, MAT["inox_dark"]))
+    frame_parts.append(box(f"frame_post_{s}", s * (E["hingeX"] + 0.03), (E["doorH"] + 0.08) / 2, EZ + 0.01,
+                           0.09, E["doorH"] + 0.08, 0.17, MAT["inox_dark"]))
 join("door_frame", frame_parts)
 
 # Enseigne au-dessus des portes (à 2.45 : dans le cadre de la caméra d'entrée)
@@ -749,8 +961,8 @@ for suffix, s in (("L", -1), ("R", 1)):
         # 1er objet = colonne de charnière → son origine devient celle du join
         cyl(f"hinge_{suffix}", s * E["hingeX"], E["doorH"] / 2 + 0.03, EZ, 0.016, E["doorH"], MAT["inox_dark"], vertices=12),
         box(f"panel_{suffix}", cx, E["doorH"] / 2 + 0.03, EZ, E["doorW"], E["doorH"], 0.045, MAT["door_paint"], bevel=0.006),
-        # Hublot : anneau + vitre sombre
-        cyl(f"glass_{suffix}", cx, 1.58, EZ, 0.135, 0.052, MAT["glass"], axis="z", vertices=28),
+        # Hublot : anneau + vitre transparente (on voit la cuisine à travers)
+        cyl(f"glass_{suffix}", cx, 1.58, EZ, 0.135, 0.052, MAT["door_window"], axis="z", vertices=28),
         # Plaque de propreté basse + poussoir central
         box(f"kick_{suffix}", cx, 0.26, EZ + 0.026, E["doorW"] - 0.08, 0.36, 0.008, MAT["inox_bright"], bevel=0),
         box(f"push_{suffix}", s * 0.1, 1.08, EZ + 0.027, 0.1, 0.34, 0.007, MAT["inox_bright"], bevel=0),

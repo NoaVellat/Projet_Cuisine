@@ -46,6 +46,9 @@ await page.evaluate(() => window.__sceneStore.getState().enter());
 await new Promise((r) => setTimeout(r, 450));
 await page.screenshot({ path: `${OUT}0-entry-crossing.png` }); // battants en cours d'ouverture
 await new Promise((r) => setTimeout(r, 3200));
+// Fermer le panneau de bienvenue (1re vue d'ensemble) pour cadrer le poste nu
+await page.evaluate(() => document.querySelector('.welcome-card button')?.click());
+await new Promise((r) => setTimeout(r, 300));
 await shot('1-overview');
 
 for (const zone of ['drawers', 'skills', 'pass', 'board', 'shelf', 'froid', 'salle']) {

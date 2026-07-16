@@ -4,11 +4,13 @@
 let ctx = null;
 let master = null;
 
-export function initAudio() {
+export function initAudio(muted = false) {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
   master = ctx.createGain();
-  master.gain.value = 0.6;
+  // On respecte l'état muet dès la création : si l'utilisateur a coupé le son
+  // sur l'écran d'entrée (avant que le contexte n'existe), on démarre à 0.
+  master.gain.value = muted ? 0 : 0.6;
   master.connect(ctx.destination);
   startAmbience();
 }

@@ -16,10 +16,11 @@ export const useSceneStore = create((set) => ({
   setBac: (bacIndex) => set({ bacIndex }),
   setMuted: (muted) => set({ muted }),
   setClassic: (classic) => set({ classic }),
-  // Le laptop « boote » (overlay ~1.1 s) puis bascule en mode classique
+  // Le laptop « boote » (overlay animé + plongée caméra ~1.5 s) puis bascule
+  // en mode classique
   bootClassic: () => {
     set({ booting: true });
-    setTimeout(() => set({ booting: false, classic: true }), 1100);
+    setTimeout(() => set({ booting: false, classic: true }), 1500);
   },
   toggleLamp: () => set((s) => ({ lampOn: !s.lampOn })),
   setRush: (rush) => set({ rush }),

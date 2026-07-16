@@ -27,7 +27,6 @@ const ZONE_BY_NODE = {
   zone_laptop: 'laptop',
   zone_duck: 'duck',
   zone_pot: 'pot',
-  zone_froid: 'froid',
   zone_salle: 'salle',
   lamp_shade: 'lamp',
   lamp_bulb: 'lamp',
@@ -40,6 +39,54 @@ for (let i = 0; i < 2; i++) ZONE_BY_NODE[`zone_glass_${i}`] = 'glass';
 
 // Une couleur par famille de stack (mêmes teintes que bacs et légumes)
 const BAC_COLORS = ['#c0392b', '#5a8a3c', '#c8a636', '#a89a7c', '#c9762e'];
+
+// L'utilisateur préfère-t-il moins d'animation ? (on coupe le tilt des tickets)
+const REDUCED =
+  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Vignette d'aperçu d'un projet : image dans public/previews/<id>.webp.
+// Si le fichier manque, l'<img> onError laisse voir le monogramme de secours.
+const projectThumb = (id) => `/previews/${id}.webp`;
+
+// Handlers de « tilt » : la carte s'incline vers le curseur (effet parallax 3D).
+// On lit la position dans le rectangle de l'élément et on pilote deux variables
+// CSS (--rx/--ry) consommées par .ticket-tilt. Zéro état React, zéro re-render.
+function tiltHandlers(max = 12) {
+  if (REDUCED) return {};
+  return {
+    onPointerMove: (e) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      const px = (e.clientX - r.left) / r.width - 0.5;
+      const py = (e.clientY - r.top) / r.height - 0.5;
+      e.currentTarget.style.setProperty('--rx', `${(-py * max).toFixed(2)}deg`);
+      e.currentTarget.style.setProperty('--ry', `${(px * max).toFixed(2)}deg`);
+    },
+    onPointerLeave: (e) => {
+      e.currentTarget.style.setProperty('--rx', '0deg');
+      e.currentTarget.style.setProperty('--ry', '0deg');
+    },
+  };
+}
+
+// Bandeau-vignette du projet, en tête de ticket (aperçu avant la chambre froide)
+function ProjectThumb({ project, accent }) {
+  return (
+    <div className="ticket-thumb" style={{ '--accent': accent }}>
+      <img
+        src={projectThumb(project.id)}
+        alt={`Aperçu — ${project.title}`}
+        loading="lazy"
+        onError={(e) => {
+          e.currentTarget.style.display = 'none';
+          e.currentTarget.parentElement.classList.add('is-fallback');
+        }}
+      />
+      <span className="ticket-thumb-mono" aria-hidden="true">
+        {project.title.slice(0, 2).toUpperCase()}
+      </span>
+    </div>
+  );
+}
 
 // Position façade du tiroir i (grille 3 colonnes × 2 rangées)
 const drawerPos = (i) => ({
@@ -57,6 +104,15 @@ function zoneRootOf(object) {
 
 // Matériaux dont l'émission fait partie du design : exclus du glow hover
 const NO_GLOW = new Set(['laptop_screen', 'lamp_bulb', 'lamp_shade']);
+
+// Décor suspendu au mur (batterie de cuivre, ustensiles, bocaux, herbes) :
+// on coupe leur projection d'ombre — leur silhouette dure sur le carrelage
+// était l'« ombre moche ». Ils sont sur des barres → pas d'ombre de contact utile.
+const NO_WALL_SHADOW = /note_|potrail|utrail|utensils|louche|ecumoire|spatule|fouet|jar_|zone_glass|herb|piano_pan|piano_saucepan/;
+function castsWallShadow(o) {
+  for (let n = o; n; n = n.parent) if (NO_WALL_SHADOW.test(n.name)) return true;
+  return false;
+}
 
 // Colonne de vapeur : des sphères translucides qui montent, grossissent et
 // s'estompent en boucle — zéro asset, ~négligeable au GPU (meshBasicMaterial).
@@ -129,7 +185,7 @@ export function Kitchen() {
     const roots = new Set();
     scene.traverse((o) => {
       if (!o.isMesh) return;
-      o.castShadow = true;
+      o.castShadow = !castsWallShadow(o);
       o.receiveShadow = true;
       const root = zoneRootOf(o);
       if (root) roots.add(root);
@@ -138,6 +194,14 @@ export function Kitchen() {
           ? o.material.map((m) => m.clone())
           : o.material.clone();
         for (const m of [].concat(o.material)) {
+          if (m.name === 'door_window') {
+            // Verre de hublot : reflet d'environnement coupé + quasi transparent,
+            // sinon le verre agit en miroir et masque la cuisine derrière.
+            m.envMapIntensity = 0;
+            m.opacity = 0.07;
+            m.roughness = 0.03;
+            m.depthWrite = false;
+          }
           if (NO_GLOW.has(m.name)) {
             // On garde leur émission (écran du laptop, lampe) + on la mémorise
             m.userData.noGlow = true;
@@ -225,14 +289,15 @@ export function Kitchen() {
         v[key] = 0;
       }
     };
-    swing(nodes.door_L, 'L', opened ? 1.9 : 0, 26, 5.5);
-    swing(nodes.door_R, 'R', opened ? -1.9 : 0, 19, 4.8);
+    // Fermées, les portes restent légèrement ENTROUVERTES : par l'interstice
+    // central on aperçoit déjà la cuisine (le vrai « voir à travers »).
+    swing(nodes.door_L, 'L', opened ? 1.5 : 0.16, 26, 5.5);
+    swing(nodes.door_R, 'R', opened ? -1.5 : -0.16, 19, 4.8);
 
-    // Portes latérales (chambre froide / salle) : ouverture amortie stable
-    if (nodes.zone_froid)
-      easing.damp(nodes.zone_froid.rotation, 'y', zoneId === 'froid' ? -1.35 : 0, 0.4, step);
+    // Porte latérale de la salle : ouverture amortie, tirée VERS la cuisine —
+    // une fois la caméra dans la salle, le battant reste hors champ.
     if (nodes.zone_salle)
-      easing.damp(nodes.zone_salle.rotation, 'y', zoneId === 'salle' ? 1.35 : 0, 0.4, step);
+      easing.damp(nodes.zone_salle.rotation, 'y', zoneId === 'salle' ? -1.35 : 0, 0.4, step);
 
     // Vie de la cuisine : flammes et four qui vacillent, canard qui se
     // dandine, couteau qui hache, casseroles-notes qui se balancent,
@@ -326,8 +391,8 @@ export function Kitchen() {
       setBac(i);
       sfx.tick();
       if (view === 'overview' || zoneId !== 'skills') goFocus('skills');
-    } else if (zone === 'froid' || zone === 'salle') {
-      // On pousse la porte et la caméra entre dans la salle voisine
+    } else if (zone === 'salle') {
+      // On pousse la porte et la caméra entre dans la salle du restaurant
       sfx.slide();
       if (view === 'overview' || zoneId !== zone) goFocus(zone);
     } else if (zone === 'lamp') {
@@ -461,8 +526,10 @@ export function Kitchen() {
           rotation={[-0.5, 0, 0]}
           distanceFactor={0.3}
         >
-          <article className="ticket ticket-3d" role="dialog" aria-label={openProject.title}>
+          <div className="ticket-tilt" {...tiltHandlers(14)}>
+            <article className="ticket ticket-3d" role="dialog" aria-label={openProject.title}>
             <TicketBody kicker="Bon de commande" title={openProject.title} num={`N°0${openIndex + 1}`}>
+              <ProjectThumb project={openProject} accent={BAC_COLORS[openIndex % BAC_COLORS.length]} />
               <p className="stamp">{openProject.course}</p>
               <p>{openProject.desc}</p>
               <p className="ticket-note">« {openProject.note} »</p>
@@ -474,7 +541,8 @@ export function Kitchen() {
                 <button onClick={() => goFocus('drawers')}>Refermer le tiroir</button>
               </div>
             </TicketBody>
-          </article>
+            </article>
+          </div>
         </Html>
       )}
 
@@ -569,38 +637,8 @@ export function Kitchen() {
         </TicketBody>
       </FocusPanel>
 
-      {/* Chambre froide — la galerie des projets (les réserves) */}
-      <FocusPanel zoneId="froid" position={[-(L.sideWalls.x + 1.15), 1.42, 1.3]}>
-        <TicketBody kicker="Chambre froide" title="Les réserves" footer="6 pièces en stock">
-          <p className="ticket-note">Tous les projets, rangés au frais.</p>
-          <div className="gallery">
-            {CONTENT.projects.map((p, i) => (
-              <a key={p.id} className="gallery-item" href={p.url} target="_blank" rel="noreferrer">
-                <span className="gallery-num">0{i + 1}</span>
-                <span className="gallery-title">{p.title}</span>
-                <span className="gallery-tech">{p.tech.slice(0, 2).join(' · ')}</span>
-              </a>
-            ))}
-          </div>
-        </TicketBody>
-      </FocusPanel>
-
-      {/* La salle — La Carte (vue d'ensemble façon menu) */}
-      <FocusPanel zoneId="salle" position={[L.sideWalls.x + 1.15, 1.42, 1.3]}>
-        <TicketBody kicker="La Salle" title="La Carte" footer="service du midi & du soir">
-          <p className="ticket-note">Bienvenue à table. Voici le menu de la maison.</p>
-          <ul className="carte">
-            <li><span>Amuse-bouche</span><em>Le Chef — mon parcours</em></li>
-            <li><span>Entrées</span><em>Les Ingrédients — mes compétences</em></li>
-            <li><span>Plats signatures</span><em>6 projets au choix</em></li>
-            <li><span>Le pass</span><em>Réservations — me contacter</em></li>
-            <li><span>L'addition</span><em>CV téléchargeable</em></li>
-          </ul>
-          <a className="ticket-link" href={CONTENT.identity.cvUrl} download>
-            Demander l'addition (CV) ↓
-          </a>
-        </TicketBody>
-      </FocusPanel>
+      {/* La Salle — le restaurant : accueil du maître d'hôtel, parcours,
+          réservation (contact) et livre d'or */}
     </group>
   );
 }

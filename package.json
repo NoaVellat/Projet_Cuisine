@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "assets": "/Applications/Blender.app/Contents/MacOS/Blender --background --python tools/build_kitchen.py && npm run assets:pack",
     "assets:pack": "gltf-transform meshopt assets-src/poste.glb public/models/poste.glb",
-    "shots": "node tools/shoot.mjs"
+    "shots": "node tools/shoot.mjs",
+    "previews": "node tools/shoot_previews.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.3",

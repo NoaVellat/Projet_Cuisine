@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react';
 import { useSceneStore } from '../store/useSceneStore';
 import { CONTENT } from '../content/content';
+import { SallePanel } from './SallePanel';
 
 // Libellés dans la voix « Mise en Place » du portfolio (table VOICE)
 export const ZONES = [
@@ -21,12 +23,12 @@ const HOVER_LABELS = {
   notes: '🎵 La batterie — jouez un air (métal)',
   glass: '🎵 Les bocaux — timbre cristal',
   veg: '🔪 La mise en place — un légume, une stack',
-  froid: '🧊 Chambre froide — la galerie des projets',
-  salle: '🍽️ La salle — entrez, la carte vous attend',
+  salle: '🍽️ La salle — le maître d’hôtel vous attend',
 };
 
 export function Overlay({ onClassic }) {
   const view = useSceneStore((s) => s.view);
+  const zoneId = useSceneStore((s) => s.zoneId);
   const hovered = useSceneStore((s) => s.hovered);
   const goOverview = useSceneStore((s) => s.goOverview);
   const goFocus = useSceneStore((s) => s.goFocus);
@@ -34,6 +36,19 @@ export function Overlay({ onClassic }) {
   const muted = useSceneStore((s) => s.muted);
   const setMuted = useSceneStore((s) => s.setMuted);
   const rush = useSceneStore((s) => s.rush);
+
+  // Panneau de bienvenue : une seule fois, à la 1re arrivée en vue d'ensemble.
+  // Invite à balayer le poste (souris) et à tout regarder avant de plonger.
+  const [welcome, setWelcome] = useState(false);
+  const welcomedOnce = useRef(false);
+  useEffect(() => {
+    if (view === 'overview' && !welcomedOnce.current) {
+      welcomedOnce.current = true;
+      setWelcome(true);
+    } else if (view !== 'overview') {
+      setWelcome(false);
+    }
+  }, [view]);
 
   return (
     <>
@@ -68,6 +83,46 @@ export function Overlay({ onClassic }) {
           </button>
         ))}
       </nav>
+
+      {/* Accès à la salle du restaurant : sa porte est hors cadre en vue
+          d'ensemble, ce repère (DOM, clic fiable) y mène. */}
+      {view === 'overview' && (
+        <button className="room-marker" onClick={() => goFocus('salle')}>
+          🍽️ La Salle · Réservations →
+        </button>
+      )}
+
+      {/* Dans la salle : le panneau réservations est docké à droite (il ne
+          masque donc pas le serveur, cadré à gauche). stopPropagation : aucun
+          clic sur le panneau ne doit atteindre le canvas (→ goBack). */}
+      {view === 'focus' && zoneId === 'salle' && (
+        <aside
+          className="salle-dock"
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <SallePanel />
+        </aside>
+      )}
+
+      {/* Bienvenue : vue d'ensemble avant de plonger — on invite à tout regarder */}
+      {welcome && view === 'overview' && (
+        <div className="welcome" role="dialog" aria-label="Bienvenue">
+          <div className="welcome-card">
+            <p className="welcome-kicker">— Service ! Bienvenue en cuisine —</p>
+            <p className="welcome-text">
+              Voici le poste du chef. Prenez le temps de tout regarder :
+              <strong> bougez la souris</strong> pour balayer la scène. Chaque objet
+              — tiroirs, saladette, tableau, passe, portes — est cliquable et mène à
+              une partie du portfolio.
+            </p>
+            <button className="btn btn-lg" onClick={() => setWelcome(false)} autoFocus>
+              Commencer le service
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Accueil : CTA d'entrée superposé au couloir (le nom est aussi en DOM) */}
       {view === 'entry' && (

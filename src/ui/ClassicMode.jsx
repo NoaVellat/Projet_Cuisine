@@ -1,4 +1,5 @@
 import { CONTENT } from '../content/content';
+import { ReservationForm } from './ReservationForm';
 
 // Fallback HTML complet — pensé comme la CARTE d'un restaurant gastronomique.
 // Accessible sans WebGL, indexable, imprimable. Voix « Mise en Place ».
@@ -142,12 +143,27 @@ export function ClassicMode({ onBack }) {
             <h2>Réservations</h2>
             <p>{c.pitch}</p>
           </div>
-          <div className="cl-contact">
-            <a href={`mailto:${c.email}`}><span>✉</span>{c.email}</a>
-            <a href={`tel:+33${c.telHref.slice(1)}`}><span>☎</span>{c.tel}</a>
-            <a href={c.github.url} target="_blank" rel="noreferrer"><span>⌥</span>GitHub · {c.github.handle}</a>
-            <a href={c.linkedin.url} target="_blank" rel="noreferrer"><span>in</span>LinkedIn · {c.linkedin.handle}</a>
-            <a href={CONTENT.identity.cvUrl} download className="cl-contact-cv"><span>⎙</span>Télécharger le CV</a>
+          <div className="cl-resa">
+            <div className="cl-resa-card">
+              <div className="cl-resa-head">
+                <h3>Réserver une table</h3>
+                <span className="cl-resa-dispo">● {CONTENT.identity.dispo}</span>
+              </div>
+              <ReservationForm variant="dark" />
+              <p className="cl-resa-note">
+                Un message file directement dans ma boîte — je réponds vite.
+              </p>
+            </div>
+            <div className="cl-resa-aside">
+              <p className="cl-resa-aside-t">Ou en direct</p>
+              <div className="cl-contact">
+                <a href={`mailto:${c.email}`}><span>✉</span>{c.email}</a>
+                <a href={`tel:+33${c.telHref.slice(1)}`}><span>☎</span>{c.tel}</a>
+                <a href={c.github.url} target="_blank" rel="noreferrer"><span>⌥</span>GitHub · {c.github.handle}</a>
+                <a href={c.linkedin.url} target="_blank" rel="noreferrer"><span>in</span>LinkedIn · {c.linkedin.handle}</a>
+                <a href={CONTENT.identity.cvUrl} download className="cl-contact-cv"><span>⎙</span>Télécharger le CV</a>
+              </div>
+            </div>
           </div>
         </section>
       </main>

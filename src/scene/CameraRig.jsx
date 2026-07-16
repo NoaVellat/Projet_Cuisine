@@ -27,6 +27,7 @@ export function CameraRig() {
   const view = useSceneStore((s) => s.view);
   const zoneId = useSceneStore((s) => s.zoneId);
   const projectId = useSceneStore((s) => s.projectId);
+  const booting = useSceneStore((s) => s.booting);
   const currentTarget = useRef(POIS.entry.target.clone());
 
   const { parallaxScale, smoothTime } = useMemo(() => {
@@ -40,21 +41,25 @@ export function CameraRig() {
   }, []);
 
   useFrame((state, delta) => {
-    const poi =
-      view === 'detail' && zoneId === 'drawers'
+    // Boot du laptop : la caméra plonge sur l'écran, priorité sur tout le reste
+    const poi = booting
+      ? POIS.laptop
+      : view === 'detail' && zoneId === 'drawers'
         ? detailPoi(projectId)
         : view === 'entry' || view === 'overview'
           ? POIS[view]
           : POIS[zoneId] ?? POIS.overview;
 
     // Parallax souris : en overview (tête qui tourne) et atténué dans le couloir
-    const pAmp = view === 'overview' ? 1 : view === 'entry' ? 0.45 : 0;
-    const px = state.pointer.x * 0.35 * parallaxScale * pAmp;
-    const py = state.pointer.y * 0.18 * parallaxScale * pAmp;
+    const pAmp = booting ? 0 : view === 'overview' ? 1 : view === 'entry' ? 0.45 : 0;
+    // px volontairement contenu : au-delà, le parallax rasait les murs
+    // latéraux et révélait le vide sur les côtés.
+    const px = state.pointer.x * 0.16 * parallaxScale * pAmp;
+    const py = state.pointer.y * 0.12 * parallaxScale * pAmp;
 
     // Traversée des portes : damping un peu plus lent pour laisser les
-    // battants s'ouvrir devant la caméra
-    const st = view === 'overview' ? smoothTime * 1.35 : smoothTime;
+    // battants s'ouvrir devant la caméra ; plongée laptop = dolly rapide et net
+    const st = booting ? 0.26 : view === 'overview' ? smoothTime * 1.35 : smoothTime;
 
     // Position : damping exponentiel, indépendant du framerate
     easing.damp3(
