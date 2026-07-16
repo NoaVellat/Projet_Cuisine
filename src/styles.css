@@ -732,11 +732,17 @@ canvas {
   right: 22px;
   transform: translateY(-50%);
   z-index: 15;
-  width: 320px;
+  width: 392px;
   max-width: calc(100vw - 44px);
-  max-height: 84vh;
+  max-height: 88vh;
   overflow-y: auto;
+  overflow-x: hidden; /* le tilt 3D ne doit pas créer d'ascenseur horizontal */
   pointer-events: auto;
+}
+
+/* Le wrapper tilt de la carte réservations (même effet que les tickets) */
+.salle-tilt {
+  will-change: transform;
 }
 
 .salle-ticket {
@@ -745,14 +751,14 @@ canvas {
 }
 
 .salle-hello {
-  font-size: 0.8rem;
+  font-size: 0.92rem;
 }
 
 /* ---------- Salle du restaurant : accueil, parcours, réservation ---------- */
 
 .salle-h {
-  margin: 13px 0 5px !important;
-  font-size: 0.72rem !important;
+  margin: 15px 0 6px !important;
+  font-size: 0.82rem !important;
   letter-spacing: 0.1em;
   color: #8a4d16;
   border-bottom: 1px dotted #b9ab90;
@@ -1607,15 +1613,15 @@ canvas {
 
 /* Variante salle 3D (papier ticket) */
 .resa-paper {
-  gap: 7px;
+  gap: 9px;
 }
 
 .resa-paper input,
 .resa-paper textarea {
-  font-size: 0.72rem;
-  padding: 6px 9px;
+  font-size: 0.84rem;
+  padding: 9px 11px;
   border: 1px solid #b9ab90;
-  border-radius: 4px;
+  border-radius: 5px;
   background: rgba(255, 255, 255, 0.6);
   color: #23201b;
 }
@@ -1634,12 +1640,12 @@ canvas {
 
 .resa-paper button {
   align-self: stretch;
-  font-size: 0.72rem;
-  padding: 8px;
+  font-size: 0.84rem;
+  padding: 11px;
   border: 1px solid #23201b;
   background: #23201b;
   color: var(--paper);
-  border-radius: 4px;
+  border-radius: 5px;
 }
 
 .resa-paper button:hover {

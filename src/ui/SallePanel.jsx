@@ -1,12 +1,15 @@
 import { CONTENT } from '../content/content';
 import { ReservationForm } from './ReservationForm';
+import { tiltHandlers } from './tilt';
 
 // Carte « réservations » de la salle : le maître d'hôtel accueille d'une jolie
 // phrase et propose de réserver (→ email). Rendue en DOM et dockée sur le
 // côté droit (elle ne masque donc pas le serveur, cadré à gauche).
+// Même interaction que les tickets projets : la carte s'incline vers la souris.
 export function SallePanel() {
   const c = CONTENT.contact;
   return (
+    <div className="ticket-tilt salle-tilt" {...tiltHandlers(6)}>
     <article className="ticket salle-ticket" role="dialog" aria-label="Réservations — la salle">
       <header className="ticket-head">
         <p className="ticket-brand">◆ Le Poste — la salle ◆</p>
@@ -29,5 +32,6 @@ export function SallePanel() {
       <div className="barcode" aria-hidden="true" />
       <p className="ticket-foot">service du midi &amp; du soir</p>
     </article>
+    </div>
   );
 }

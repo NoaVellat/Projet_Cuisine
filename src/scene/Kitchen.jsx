@@ -7,6 +7,7 @@ import { useSceneStore } from '../store/useSceneStore';
 import { CONTENT } from '../content/content';
 import { LAYOUT as L } from './layout';
 import { makeSubwayTexture, makeFloorTexture, makeTerminal, SUBWAY_PERIOD, FLOOR_PERIOD } from './textures';
+import { tiltHandlers } from '../ui/tilt';
 import { sfx } from '../audio/sfx';
 
 const MODEL = '/models/poste.glb';
@@ -26,8 +27,11 @@ const ZONE_BY_NODE = {
   // Easter eggs & vie de la cuisine
   zone_laptop: 'laptop',
   zone_duck: 'duck',
+  zone_duck2: 'duck', // le canard doré du buffet de la salle
   zone_pot: 'pot',
   zone_salle: 'salle',
+  zone_bell: 'bell', // sonnette du pupitre d'accueil
+  zone_champ: 'champ', // seau à champagne de la salle
   lamp_shade: 'lamp',
   lamp_bulb: 'lamp',
 };
@@ -40,33 +44,9 @@ for (let i = 0; i < 2; i++) ZONE_BY_NODE[`zone_glass_${i}`] = 'glass';
 // Une couleur par famille de stack (mêmes teintes que bacs et légumes)
 const BAC_COLORS = ['#c0392b', '#5a8a3c', '#c8a636', '#a89a7c', '#c9762e'];
 
-// L'utilisateur préfère-t-il moins d'animation ? (on coupe le tilt des tickets)
-const REDUCED =
-  typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 // Vignette d'aperçu d'un projet : image dans public/previews/<id>.webp.
 // Si le fichier manque, l'<img> onError laisse voir le monogramme de secours.
 const projectThumb = (id) => `/previews/${id}.webp`;
-
-// Handlers de « tilt » : la carte s'incline vers le curseur (effet parallax 3D).
-// On lit la position dans le rectangle de l'élément et on pilote deux variables
-// CSS (--rx/--ry) consommées par .ticket-tilt. Zéro état React, zéro re-render.
-function tiltHandlers(max = 12) {
-  if (REDUCED) return {};
-  return {
-    onPointerMove: (e) => {
-      const r = e.currentTarget.getBoundingClientRect();
-      const px = (e.clientX - r.left) / r.width - 0.5;
-      const py = (e.clientY - r.top) / r.height - 0.5;
-      e.currentTarget.style.setProperty('--rx', `${(-py * max).toFixed(2)}deg`);
-      e.currentTarget.style.setProperty('--ry', `${(px * max).toFixed(2)}deg`);
-    },
-    onPointerLeave: (e) => {
-      e.currentTarget.style.setProperty('--rx', '0deg');
-      e.currentTarget.style.setProperty('--ry', '0deg');
-    },
-  };
-}
 
 // Bandeau-vignette du projet, en tête de ticket (aperçu avant la chambre froide)
 function ProjectThumb({ project, accent }) {
@@ -174,6 +154,7 @@ export function Kitchen() {
   const stoveLight = useRef();
   const spotTarget = useMemo(() => new Object3D(), []);
   const noteHits = useRef([-99, -99, -99, -99]); // instants de frappe (xylophone)
+  const bellAt = useRef(-99); // instant du dernier coup de sonnette
   const clockNow = useRef(0);
   const term = useRef(null); // terminal animé du laptop
   const lastTerm = useRef(0);
@@ -244,6 +225,22 @@ export function Kitchen() {
     t.repeat.set(5.2 / SUBWAY_PERIOD.w, L.wall.h / SUBWAY_PERIOD.h);
     return t;
   }, []);
+  // Mur droit PERCÉ au gabarit du passage vers la salle (z 0,71→1,91, h 2,2) :
+  // trois segments carrelés, chacun avec repeat/offset accordés pour que le
+  // motif reste continu (u croît vers +z sur un plan tourné de -90°).
+  const sideSegsR = useMemo(() => {
+    const segs = [
+      { z0: -0.55, z1: 0.71, y0: 0, y1: L.wall.h }, // avant l'ouverture
+      { z0: 1.91, z1: 4.65, y0: 0, y1: L.wall.h }, // après l'ouverture
+      { z0: 0.71, z1: 1.91, y0: 2.2, y1: L.wall.h }, // au-dessus (linteau)
+    ];
+    return segs.map((sg) => {
+      const t = makeSubwayTexture();
+      t.repeat.set((sg.z1 - sg.z0) / SUBWAY_PERIOD.w, (sg.y1 - sg.y0) / SUBWAY_PERIOD.h);
+      t.offset.set(((sg.z0 + 0.55) / SUBWAY_PERIOD.w) % 1, (sg.y0 / SUBWAY_PERIOD.h) % 1);
+      return { ...sg, tex: t };
+    });
+  }, []);
 
   const openProject = view === 'detail' ? CONTENT.projects.find((p) => p.id === projectId) : null;
   const openIndex = openProject ? CONTENT.projects.indexOf(openProject) : -1;
@@ -294,16 +291,19 @@ export function Kitchen() {
     swing(nodes.door_L, 'L', opened ? 1.5 : 0.16, 26, 5.5);
     swing(nodes.door_R, 'R', opened ? -1.5 : -0.16, 19, 4.8);
 
-    // Porte latérale de la salle : ouverture amortie, tirée VERS la cuisine —
-    // une fois la caméra dans la salle, le battant reste hors champ.
-    if (nodes.zone_salle)
-      easing.damp(nodes.zone_salle.rotation, 'y', zoneId === 'salle' ? -1.35 : 0, 0.4, step);
+    // (L'accès à la salle est un passage ouvert à portières nouées : rien ne
+    // bat ni ne pivote — la caméra glisse simplement à travers l'arche.)
 
     // Vie de la cuisine : flammes et four qui vacillent, canard qui se
     // dandine, couteau qui hache, casseroles-notes qui se balancent,
     // terminal du laptop qui tape son build.
     const t = _.clock.elapsedTime;
     clockNow.current = t;
+    // En dev : scène + caméra exposées pour les scripts de validation (tools/)
+    if (import.meta.env.DEV) {
+      window.__scene = _.scene;
+      window.__cam = _.camera;
+    }
     for (let i = 0; i < 4; i++) {
       const n = nodes[`flame_${i}`];
       if (!n) continue;
@@ -328,6 +328,17 @@ export function Kitchen() {
     if (nodes.zone_duck) {
       nodes.zone_duck.rotation.y = Math.sin(t * 1.3) * 0.18;
       nodes.zone_duck.rotation.z = Math.sin(t * 2.2) * 0.05;
+    }
+    // Le canard doré de la salle se dandine aussi (plus dignement)
+    if (nodes.zone_duck2) nodes.zone_duck2.rotation.y = Math.sin(t * 1.1 + 2) * 0.13;
+    // Sonnette : squash bref au clic puis retour élastique. ATTENTION : le
+    // scale du nœud GLB n'est PAS 1 (la quantization meshopt normalise le
+    // mesh et compense dans le scale) → on multiplie l'échelle d'origine.
+    if (nodes.zone_bell) {
+      const b = nodes.zone_bell;
+      if (b.userData.sy0 === undefined) b.userData.sy0 = b.scale.y;
+      const dt = t - bellAt.current;
+      b.scale.y = b.userData.sy0 * (dt >= 0 && dt < 0.2 ? 0.65 + (dt / 0.2) * 0.35 : 1);
     }
     // Couteau : rafale de hachage puis pause (le chef taille la mise en place)
     if (nodes.knife) {
@@ -375,6 +386,12 @@ export function Kitchen() {
       useSceneStore.getState().bootClassic();
     } else if (zone === 'duck') {
       sfx.quack();
+    } else if (zone === 'bell') {
+      // La sonnette de l'accueil : ding ! + squash animé en useFrame
+      sfx.bell();
+      bellAt.current = clockNow.current;
+    } else if (zone === 'champ') {
+      sfx.blup(); // le bouchon saute (enfin, presque)
     } else if (zone === 'pot') {
       sfx.blup();
     } else if (zone === 'notes') {
@@ -392,7 +409,7 @@ export function Kitchen() {
       sfx.tick();
       if (view === 'overview' || zoneId !== 'skills') goFocus('skills');
     } else if (zone === 'salle') {
-      // On pousse la porte et la caméra entre dans la salle du restaurant
+      // On passe les portières et la caméra entre dans la salle du restaurant
       sfx.slide();
       if (view === 'overview' || zoneId !== zone) goFocus(zone);
     } else if (zone === 'lamp') {
@@ -493,18 +510,28 @@ export function Kitchen() {
         <planeGeometry args={[L.wall.w, L.wall.h]} />
         <meshStandardMaterial map={wallTex} roughness={0.35} metalness={0.02} />
       </mesh>
-      {/* Murs latéraux carrelés : la cuisine donne sur la chambre froide (g.)
-          et la salle (d.) — portes modélisées dans le GLB */}
-      {[-1, 1].map((s) => (
+      {/* Mur latéral gauche : plein (la chambre froide n'existe plus) */}
+      <mesh
+        position={[-L.sideWalls.x, L.wall.h / 2, 2.05]}
+        rotation={[0, Math.PI / 2, 0]}
+        raycast={NO_RAYCAST}
+        receiveShadow
+      >
+        <planeGeometry args={[5.2, L.wall.h]} />
+        <meshStandardMaterial map={sideTex} roughness={0.35} metalness={0.02} />
+      </mesh>
+      {/* Mur latéral droit : PERCÉ — on aperçoit la salle chaude à travers
+          le passage à portières (encadrement modélisé dans le GLB) */}
+      {sideSegsR.map((sg, i) => (
         <mesh
-          key={s}
-          position={[s * L.sideWalls.x, L.wall.h / 2, 2.05]}
-          rotation={[0, (-s * Math.PI) / 2, 0]}
+          key={i}
+          position={[L.sideWalls.x, (sg.y0 + sg.y1) / 2, (sg.z0 + sg.z1) / 2]}
+          rotation={[0, -Math.PI / 2, 0]}
           raycast={NO_RAYCAST}
           receiveShadow
         >
-          <planeGeometry args={[5.2, L.wall.h]} />
-          <meshStandardMaterial map={sideTex} roughness={0.35} metalness={0.02} />
+          <planeGeometry args={[sg.z1 - sg.z0, sg.y1 - sg.y0]} />
+          <meshStandardMaterial map={sg.tex} roughness={0.35} metalness={0.02} />
         </mesh>
       ))}
       {/* Plafond sombre : ferme le volume, plus de vide noir en levant les yeux */}
@@ -575,9 +602,9 @@ export function Kitchen() {
         </TicketBody>
       </FocusPanel>
 
-      {/* Réservations — contact au passe */}
+      {/* Service ! — contact au passe (les réservations vivent en salle) */}
       <FocusPanel zoneId="pass" position={[L.pass.x, L.pass.shelfY - 0.02, L.pass.z + 0.15]}>
-        <TicketBody kicker="Réservations" title="Service au passe" footer="réponse rapide · lyon">
+        <TicketBody kicker="— Service ! —" title="Le chef répond au passe" footer="réponse sous 24 h · lyon">
           <p>{CONTENT.contact.pitch}</p>
           <div className="contact-list">
             <p className="contact-row">
@@ -607,6 +634,10 @@ export function Kitchen() {
               </a>
             </p>
           </div>
+          <p className="ticket-note">
+            ⚠ Allergènes : bugs, code non testé &amp; deadlines floues — jamais
+            servis dans cette maison.
+          </p>
           <p className="stamp stamp-green">{CONTENT.identity.dispo}</p>
         </TicketBody>
       </FocusPanel>

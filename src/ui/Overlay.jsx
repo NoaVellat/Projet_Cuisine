@@ -9,7 +9,7 @@ export const ZONES = [
   { id: 'skills', label: 'Les Ingrédients — la saladette' },
   { id: 'board', label: 'La Brigade — le parcours' },
   { id: 'shelf', label: 'Le Chef — livre de recettes' },
-  { id: 'pass', label: 'Réservations — le passe' },
+  { id: 'pass', label: 'Service ! — contact au passe' },
 ];
 
 const HOVER_LABELS = {
@@ -23,7 +23,9 @@ const HOVER_LABELS = {
   notes: '🎵 La batterie — jouez un air (métal)',
   glass: '🎵 Les bocaux — timbre cristal',
   veg: '🔪 La mise en place — un légume, une stack',
-  salle: '🍽️ La salle — le maître d’hôtel vous attend',
+  salle: '🍽️ La salle — passez les portières',
+  bell: '🛎️ Sonnez — le service arrive',
+  champ: '🍾 Le champagne du succès',
 };
 
 export function Overlay({ onClassic }) {

@@ -296,6 +296,18 @@ cyl("lamp_bulb", P["x"], P["lampY"] - 0.06, P["z"], 0.045, 0.02, MAT["lamp_bulb"
 
 box("zone_pass", P["x"], P["shelfY"], P["z"], P["w"], 0.035, P["d"], MAT["inox_bright"])
 
+# Le passe = le CONTACT : on le signale franchement — enseigne cuivrée
+# « SERVICE ! » (le cri du passe — les réservations, elles, vivent en salle)
+# + bons de commande pincés sur la barre (l'appel au clic)
+psign = text3d("pass_sign", "SERVICE !", 0, 0, 0, 0.07, MAT["copper_text"], extrude=0.003)
+psign.location = loc(P["x"], 1.75, P["z"])
+for sx in (-1, 1):
+    cyl(f"pass_sign_rod_{sx}", P["x"] + sx * 0.18, 1.67, P["z"], 0.004, 0.08, MAT["dark_metal"], vertices=8)
+for k, (bx_, rz) in enumerate(((0.56, 0.06), (0.68, -0.04), (1.02, 0.05), (1.14, -0.07))):
+    # rot Blender Y = léger « roulis » de part et d'autre de la pince
+    box(f"pass_bon_{k}", bx_, 1.565, P["z"], 0.075, 0.1, 0.003, MAT["paper"], bevel=0, rot=(0, rz, 0))
+    box(f"pass_clip_{k}", bx_, 1.617, P["z"], 0.022, 0.018, 0.012, MAT["inox_bright"], bevel=0.002)
+
 # ---------- tableau de brigade (zone Skills) ----------
 
 BO = L["board"]
@@ -663,28 +675,6 @@ MAT["candle"] = make_mat("candle", "#ffcf87", 0.5, 0.0, "#ff9a3c", 3.0)
 MAT["pendant_glow"] = make_mat("pendant_glow", "#ffd9a0", 0.5, 0.0, "#ffb066", 2.0)
 
 
-def side_door(name, sign_text, sgn, panel_mat, hublot=False):
-    """Porte battante latérale à charnière (1er objet = charnière → pivot R3F).
-    sgn = -1 (gauche, chambre froide) ou +1 (droite, salle)."""
-    dx = sgn * (SW - 0.05)
-    hinge_z = 0.82  # charnière au bord avant → la porte s'ouvre vers la salle
-    parts = [cyl(f"{name}_hinge", dx, 1.05, hinge_z, 0.02, 2.05, MAT["inox_dark"], vertices=10)]
-    parts.append(box(f"{name}_panel", dx, 1.05, 1.31, 0.06, 2.0, 0.94, panel_mat, bevel=0.008))
-    if hublot:
-        parts.append(cyl(f"{name}_hublot_ring", dx - sgn * 0.01, 1.55, 1.31, 0.135, 0.05, MAT["inox_bright"], axis="x", vertices=24))
-        parts.append(cyl(f"{name}_hublot", dx - sgn * 0.02, 1.55, 1.31, 0.12, 0.03, MAT["door_window"], axis="x", vertices=24))
-        parts.append(box(f"{name}_kick", dx - sgn * 0.025, 0.28, 1.31, 0.012, 0.36, 0.82, MAT["inox_bright"], bevel=0))
-    else:
-        parts.append(box(f"{name}_handle", dx - sgn * 0.06, 1.05, 1.72, 0.05, 0.42, 0.06, MAT["dark_metal"], bevel=0.008))
-    door = join(f"zone_{name}", parts)
-    # Cadre fixe + enseigne (hors du groupe qui pivote)
-    box(f"{name}_frame", sgn * (SW - 0.02), 1.1, 1.31, 0.03, 2.24, 1.16, MAT["inox_dark"], bevel=0)
-    sign = text3d(f"{name}_sign", sign_text, 0, 0, 0, 0.07, MAT["copper_text"], extrude=0.002)
-    sign.location = loc(sgn * (SW - 0.06), 2.4, 1.31)
-    sign.rotation_euler = (1.5708, 0, sgn * 1.5708)  # face au poste
-    return door
-
-
 # ---------- LA SALLE (droite) : la grande salle du restaurant ----------
 # Vraie salle profonde (~5,6 m) vue depuis l'entrée : tapis rouge, allée de
 # lustres, tables rondes dressées côté fenêtres, banquette bordeaux côté
@@ -707,15 +697,33 @@ MAT["sconce"] = make_mat("sconce", "#ffe6bf", 0.4, 0.0, "#ffcf87", 4.0)
 for k, art_c in enumerate(("#cbb3d0", "#a9c4b8")):
     MAT[f"art{k}"] = make_mat(f"art{k}", art_c, 0.85)
 
-side_door("salle", "LA SALLE", 1, MAT["door_paint"], hublot=True)
-
 RX0 = SW + 0.04   # mur d'entrée, côté salle
 BX = SW + 5.7     # mur du fond → ~5,6 m de profondeur visible
 Z0, Z1 = -0.30, 3.10
 CEIL = 3.05
 CX, CZ = (RX0 + BX) / 2, (Z0 + Z1) / 2
 DEPTH, WIDE = BX - RX0, Z1 - Z0
-AXZ = 1.30        # allée centrale, alignée sur la porte
+AXZ = 1.30        # allée centrale, alignée sur le passage
+
+# L'accès à la salle : un PASSAGE OUVERT — fini la porte qui bat dans la
+# figure pendant le vol de caméra. Encadrement bois + filet doré côté
+# cuisine, portières bordeaux nouées d'or côté salle : on aperçoit la salle
+# chaude depuis la cuisine (le mur R3F est percé au même gabarit) et la
+# caméra glisse à travers l'arche habillée. Groupe zone_salle = cliquable.
+portal = [
+    box("salle_jamb_a", SW - 0.02, 1.1, 0.71, 0.07, 2.3, 0.12, MAT["salle_wain"], bevel=0.006),
+    box("salle_jamb_b", SW - 0.02, 1.1, 1.91, 0.07, 2.3, 0.12, MAT["salle_wain"], bevel=0.006),
+    box("salle_lintel", SW - 0.02, 2.3, 1.31, 0.07, 0.16, 1.32, MAT["salle_wain"], bevel=0.006),
+    box("salle_lintel_gold", SW - 0.058, 2.21, 1.31, 0.012, 0.028, 1.18, MAT["gold"], bevel=0),
+]
+for pz in (0.8, 1.82):
+    portal.append(box(f"salle_port_top_{pz}", RX0 + 0.1, 1.75, pz, 0.14, 0.95, 0.18, MAT["rug"], bevel=0.024))
+    portal.append(cyl(f"salle_port_tie_{pz}", RX0 + 0.1, 1.22, pz, 0.06, 0.1, MAT["gold"], vertices=12))
+    portal.append(box(f"salle_port_low_{pz}", RX0 + 0.1, 0.62, pz, 0.12, 1.14, 0.16, MAT["rug"], bevel=0.024))
+join("zone_salle", portal)
+sign = text3d("salle_sign", "LA SALLE", 0, 0, 0, 0.07, MAT["copper_text"], extrude=0.002)
+sign.location = loc(SW - 0.06, 2.5, 1.31)
+sign.rotation_euler = (1.5708, 0, 1.5708)  # face au poste
 
 # Coquille : parquet (lattes filant vers le fond → la perspective se lit),
 # murs crème, plafond à caisson. Le mur d'entrée est percé au gabarit porte.
@@ -811,7 +819,10 @@ for k, (tx, tz) in enumerate(((5.85, 0.5), (7.5, 0.55))):
         cyl(f"salle_gstem_{k}_{gsn}", tx + gsn * 0.05, 0.76, tz + 0.2, 0.005, 0.07, MAT["glass"], vertices=8)
         cone(f"salle_gbowl_{k}_{gsn}", tx + gsn * 0.05, 0.82, tz + 0.2, 0.03, 0.02, 0.055, MAT["glass"], vertices=12)
     salle_chair(f"r{k}a", tx - 0.6, tz, -1, 0)
-    salle_chair(f"r{k}b", tx + 0.6, tz, 1, 0)
+    # T1 (k=0) libère le côté allée : le guéridon à dessert y prend place,
+    # présenté par le bras ouvert du maître d'hôtel
+    if k:
+        salle_chair(f"r{k}b", tx + 0.6, tz, 1, 0)
 
 # Trois lustres dorés suspendus BAS au-dessus des TABLES (pas de l'allée :
 # l'axe reste dégagé pour lire l'enseigne du fond) — flaques de lumière
@@ -843,9 +854,13 @@ box("salle_tab", BX - 0.055, 1.85, CZ, 0.02, 1.21, 1.61, MAT["tab_sky"], bevel=0
 box("salle_tab_h1", BX - 0.062, 1.58, CZ, 0.012, 0.36, 1.52, MAT["tab_hill"], bevel=0)
 box("salle_tab_h2", BX - 0.066, 1.44, CZ, 0.012, 0.2, 1.52, MAT["tab_hill2"], bevel=0)
 cyl("salle_tab_sun", BX - 0.068, 2.12, 1.0, 0.14, 0.012, MAT["tab_sun"], axis="x", vertices=22)
-nom = text3d("salle_nom", "LE POSTE", 0, 0, 0, 0.16, MAT["gold"], extrude=0.004)
-nom.location = loc(BX - 0.07, 2.84, CZ)
+# L'enseigne du fond : l'engagement derrière le formulaire de réservation
+nom = text3d("salle_nom", "PRÊT POUR L'AVENTURE ?", 0, 0, 0, 0.125, MAT["gold"], extrude=0.004)
+nom.location = loc(BX - 0.07, 2.86, CZ)
 nom.rotation_euler = (1.5708, 0, -1.5708)
+sub = text3d("salle_nom_sub", "une réservation, une réponse sous 24 h — promis", 0, 0, 0, 0.048, MAT["copper_text"], extrude=0.002)
+sub.location = loc(BX - 0.07, 2.68, CZ)
+sub.rotation_euler = (1.5708, 0, -1.5708)
 for k, sz_ in enumerate((0.32, 2.48)):
     cyl(f"salle_sconce_{k}", BX - 0.07, 1.95, sz_, 0.05, 0.07, MAT["gold"], axis="x", vertices=12)
     sphere(f"salle_sconce_glow_{k}", BX - 0.13, 1.98, sz_, 0.05, MAT["sconce"], scale=(0.7, 1, 1))
@@ -872,15 +887,82 @@ box("host_menu_l", HX, 1.085, HZ - 0.065, 0.26, 0.012, 0.13, MAT["leather"], rot
 box("host_menu_r", HX, 1.085, HZ + 0.065, 0.26, 0.012, 0.13, MAT["leather"], rot=(0.32, 0, 0), bevel=0)
 box("host_page_l", HX, 1.093, HZ - 0.062, 0.23, 0.008, 0.11, MAT["paper"], rot=(-0.32, 0, 0), bevel=0)
 box("host_page_r", HX, 1.093, HZ + 0.062, 0.23, 0.008, 0.11, MAT["paper"], rot=(0.32, 0, 0), bevel=0)
-cyl("host_lamp_stem", HX + 0.15, 1.12, HZ - 0.12, 0.008, 0.12, MAT["gold"], vertices=8)
-cone("host_lamp_shade", HX + 0.15, 1.2, HZ - 0.12, 0.055, 0.025, 0.07, MAT["gold"], vertices=14)
-sphere("host_lamp_glow", HX + 0.15, 1.185, HZ - 0.12, 0.028, MAT["sconce"], subdiv=1)
+# La lampe laiton vit sur le BUFFET (sur le pupitre, elle masquait l'ardoise
+# du menu du jour depuis le POI)
+cyl("host_lamp_stem", 8.64, 1.1, 0.42, 0.008, 0.12, MAT["gold"], vertices=8)
+cone("host_lamp_shade", 8.64, 1.18, 0.42, 0.055, 0.025, 0.07, MAT["gold"], vertices=14)
+sphere("host_lamp_glow", 8.64, 1.165, 0.42, 0.028, MAT["sconce"], subdiv=1)
 # Chevalet doré « RÉSERVATIONS » debout SUR le bord avant du plateau, bien
 # DROIT face à l'entrée (-x) — hors du menu, rien ne se traverse
 box("host_plaque_base", HX - 0.21, 1.085, HZ, 0.022, 0.035, 0.34, MAT["gold"], bevel=0.004)
 plq = text3d("host_plaque", "RÉSERVATIONS", 0, 0, 0, 0.035, MAT["gold"], extrude=0.002)
 plq.location = loc(HX - 0.225, 1.128, HZ)
 plq.rotation_euler = (1.5708, 0, -1.5708)
+
+# La sonnette d'accueil (coin du pupitre) : cliquable → ding ! (zone_bell)
+BLX, BLZ = HX + 0.18, HZ + 0.15
+bell = [
+    cyl("bell_base", BLX, 1.074, BLZ, 0.05, 0.014, MAT["dark_metal"], vertices=18),
+    sphere("bell_dome", BLX, 1.088, BLZ, 0.048, MAT["brass"], scale=(1, 0.72, 1)),
+    cyl("bell_btn", BLX, 1.128, BLZ, 0.009, 0.018, MAT["dark_metal"], vertices=8),
+]
+join("zone_bell", bell)
+
+# Seau à champagne sur pied, au bord de l'allée (cliquable → pop, zone_champ)
+champ = [
+    cyl("champ_leg", 7.1, 0.36, 0.92, 0.03, 0.68, MAT["gold"], vertices=10),
+    cyl("champ_foot", 7.1, 0.02, 0.92, 0.12, 0.03, MAT["gold"], vertices=14),
+    cone("champ_bucket", 7.1, 0.78, 0.92, 0.075, 0.105, 0.2, MAT["inox_bright"], vertices=18),
+    cyl("champ_bottle", 7.08, 0.95, 0.9, 0.028, 0.19, MAT["bottle_vin"], vertices=12, rot=(0.45, 0, 0.3)),
+]
+join("zone_champ", champ)
+
+# Ardoise « menu du jour » sur chevalet, entre les deux tables rondes —
+# easter egg tech : la stack servie comme des plats
+MAT["chalk"] = make_mat("chalk", "#e9e6da", 0.9)
+# Les pieds du chevalet restent DERRIÈRE l'ardoise (elle repose devant eux,
+# sur la tablette) : rien ne traverse le tableau
+cyl("easel_leg_a", 6.6, 0.55, -0.15, 0.014, 1.16, MAT["salle_wain"], vertices=8, rot=(0.14, 0, 0))
+cyl("easel_leg_b", 6.6, 0.55, 0.25, 0.014, 1.16, MAT["salle_wain"], vertices=8, rot=(-0.14, 0, 0))
+cyl("easel_leg_c", 6.75, 0.55, 0.05, 0.014, 1.16, MAT["salle_wain"], vertices=8, rot=(0, -0.16, 0))
+box("easel_board", 6.56, 1.0, 0.05, 0.025, 0.64, 0.54, MAT["slate"], bevel=0.006)
+box("easel_ledge", 6.535, 0.67, 0.05, 0.035, 0.025, 0.46, MAT["salle_wain"], bevel=0.004)
+for k, (line, sz) in enumerate((("MENU DU JOUR", 0.036), ("React rôti", 0.044), ("Node au jus", 0.044), ("SQL flambé", 0.044))):
+    tt = text3d(f"easel_txt_{k}", line, 0, 0, 0, sz, MAT["chalk"], extrude=0.001)
+    tt.location = loc(6.54, 1.24 - k * 0.125, 0.05)
+    tt.rotation_euler = (1.5708, 0, -1.5708)
+
+# Guéridon de service à côté du maître d'hôtel : son bras ouvert PRÉSENTE le
+# plateau à dessert sous cloche — bien en vue au premier plan de l'allée
+GDX, GDZ = 6.42, 0.55
+cyl("gueridon_foot", GDX, 0.02, GDZ, 0.13, 0.035, MAT["salle_wain"], vertices=14)
+cyl("gueridon_pied", GDX, 0.36, GDZ, 0.03, 0.68, MAT["salle_wain"], vertices=10)
+cyl("gueridon_top", GDX, 0.72, GDZ, 0.19, 0.03, MAT["wood"], vertices=20)
+cyl("cake_foot", GDX, 0.75, GDZ, 0.035, 0.035, MAT["porcelain"], vertices=14)
+cyl("cake_plate", GDX, 0.777, GDZ, 0.095, 0.012, MAT["porcelain"], vertices=22)
+cyl("cake", GDX, 0.81, GDZ, 0.05, 0.05, MAT["plant_pot"], vertices=16)
+sphere("cake_dome", GDX, 0.825, GDZ, 0.1, MAT["door_window"], scale=(1, 0.78, 1))
+sphere("cake_knob", GDX, 0.91, GDZ, 0.016, MAT["gold"], subdiv=1)
+
+# Le CANARD DORÉ, cousin chic du canard de debug (cliquable → coin coin)
+duck2 = [
+    sphere("duck2_body", 8.66, 1.082, 2.28, 0.05, MAT["gold"], scale=(1.15, 0.85, 1)),
+    sphere("duck2_head", 8.625, 1.14, 2.28, 0.03, MAT["gold"]),
+    box("duck2_beak", 8.59, 1.135, 2.28, 0.022, 0.012, 0.02, MAT["tab_sun"], bevel=0.002),
+    sphere("duck2_tail", 8.705, 1.1, 2.28, 0.02, MAT["gold"], scale=(1.2, 0.7, 0.8), subdiv=1),
+]
+join("zone_duck2", duck2)
+
+# Un des tableaux devient un « </> » encadré d'or (l'art selon un dev)
+code = text3d("salle_art_code", "</>", 0, 0, 0, 0.14, MAT["copper_text"], extrude=0.003)
+code.location = loc(6.7, 1.85, Z1 - 0.088)
+code.rotation_euler = (1.5708, 0, 3.1416)
+
+# Carton « RÉSERVÉ » sur la première table — cette table attend votre projet
+box("t1_card", 5.75, 0.78, 0.32, 0.012, 0.07, 0.12, MAT["paper"], bevel=0.002)
+rsv = text3d("t1_card_txt", "RÉSERVÉ", 0, 0, 0, 0.022, MAT["ink"], extrude=0.001)
+rsv.location = loc(5.742, 0.785, 0.32)
+rsv.rotation_euler = (1.5708, 0, -1.5708)
 
 # Le maître d'hôtel (face à l'entrée, -x) : vraie silhouette — jambes,
 # chaussures, plastron blanc sous gilet cintré, nœud pap, visage (yeux, nez,
