@@ -16,7 +16,10 @@ const PROJECTS = [
   ['generateur-cv', 'https://noavellat.github.io/My_CV_generator/'],
   ['my-notion', 'https://my-notion-pcwl.vercel.app/'],
   ['core-lab', 'https://github.com/NoaVellat/Core_Lab'],
+  ['portfolio-terminal', 'https://noa-vellat.netlify.app/'],
 ];
+// NB : core-lab et my-video-club ont des couvertures SUR MESURE (make_covers.mjs)
+// — relancer ce script en entier les écraserait.
 
 const browser = await puppeteer.launch({
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',

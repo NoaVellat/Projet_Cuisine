@@ -82,6 +82,18 @@ export const CONTENT = {
       tech: ['MongoDB', 'Express', 'React', 'Node.js'],
       url: 'https://github.com/NoaVellat/Core_Lab',
     },
+    {
+      id: 'portfolio-terminal',
+      title: 'Portfolio Terminal',
+      course: 'Menu dégustation',
+      note: 'Un site, cinq ambiances — la carte change, la maison reste.',
+      desc:
+        'Mon portfolio « terminal » : cinq ambiances visuelles commutables en un clic ' +
+        '(brigade, ingénierie, créatif…), animations matrix, bilingue FR/EN — ' +
+        "l'autre salle de la maison, à visiter aussi.",
+      tech: ['HTML5', 'CSS3', 'JavaScript'],
+      url: 'https://noa-vellat.netlify.app/',
+    },
   ],
   projectsCTA: { url: 'https://github.com/NoaVellat', label: 'Voir tous mes projets' },
 

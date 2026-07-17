@@ -35,7 +35,7 @@ const ZONE_BY_NODE = {
   lamp_shade: 'lamp',
   lamp_bulb: 'lamp',
 };
-for (let i = 0; i < 6; i++) ZONE_BY_NODE[`zone_drawer_${i}`] = 'drawers';
+for (let i = 0; i < 8; i++) ZONE_BY_NODE[`zone_drawer_${i}`] = 'drawers';
 for (let i = 0; i < 5; i++) ZONE_BY_NODE[`zone_bac_${i}`] = 'skills';
 for (let i = 0; i < 4; i++) ZONE_BY_NODE[`zone_note_${i}`] = 'notes';
 for (let i = 0; i < 5; i++) ZONE_BY_NODE[`zone_veg_${i}`] = 'veg';
@@ -68,10 +68,10 @@ function ProjectThumb({ project, accent }) {
   );
 }
 
-// Position façade du tiroir i (grille 3 colonnes × 2 rangées)
+// Position façade du tiroir i (grille cols × rangées, pilotée par layout.json)
 const drawerPos = (i) => ({
-  x: L.drawers.cols[i % 3],
-  y: L.drawers.rows[Math.floor(i / 3)],
+  x: L.drawers.cols[i % L.drawers.cols.length],
+  y: L.drawers.rows[Math.floor(i / L.drawers.cols.length)],
 });
 
 // Un objet Blender multi-matériaux arrive dans three.js comme un Group
@@ -263,15 +263,16 @@ export function Kitchen() {
       });
     }
 
-    CONTENT.projects.forEach((p, i) => {
+    // Tous les tiroirs, y compris le 8e (secret, sans projet) : rush = « coup
+    // de feu » (code Konami) → tout s'ouvre ; survol en focus → entrebâillé.
+    for (let i = 0; i < 8; i++) {
       const node = nodes[`zone_drawer_${i}`];
-      if (!node) return;
-      // rush = « coup de feu » (code Konami) : tous les tiroirs s'ouvrent
-      const open = rush || (view === 'detail' && projectId === p.id);
-      // Au survol en vue focus, le tiroir s'entrouvre — invite au clic
+      if (!node) continue;
+      const p = CONTENT.projects[i];
+      const open = rush || (p && view === 'detail' && projectId === p.id);
       const peek = !open && zoneId === 'drawers' && hotName === `zone_drawer_${i}` ? 0.06 : 0;
       easing.damp(node.position, 'z', L.drawers.z + (open ? L.drawers.slide : peek), 0.25, step);
-    });
+    }
 
     // Battants d'entrée : ressort sous-amorti (dépassent puis se stabilisent),
     // constantes différentes gauche/droite. Snap final = pas d'oscillation infinie.
@@ -434,7 +435,9 @@ export function Kitchen() {
         goFocus('drawers');
       } else {
         const i = Number(root.name.split('_')[2]);
-        goDetail(CONTENT.projects[i].id);
+        // Le 8e tiroir n'a pas de projet : c'est le tiroir secret du chef
+        if (CONTENT.projects[i]) goDetail(CONTENT.projects[i].id);
+        else sfx.quack();
       }
     } else if (view === 'overview' || zoneId !== zone) {
       goFocus(zone);

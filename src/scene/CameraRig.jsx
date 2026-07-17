@@ -16,8 +16,8 @@ const DETAIL = { pos: new Vector3(), target: new Vector3() };
 function detailPoi(projectId) {
   const i = CONTENT.projects.findIndex((p) => p.id === projectId);
   const D = LAYOUT.drawers;
-  const x = D.cols[i % 3] ?? 0;
-  const y = D.rows[Math.floor(i / 3)] ?? D.rows[0];
+  const x = D.cols[i % D.cols.length] ?? 0;
+  const y = D.rows[Math.floor(i / D.cols.length)] ?? D.rows[0];
   DETAIL.pos.set(x, y + 0.42, 1.32);
   DETAIL.target.set(x, y + 0.02, D.z + 0.07);
   return DETAIL;

@@ -266,18 +266,19 @@ box("worktop", 0, C["h"] + W["t"] / 2, 0, W["w"], W["t"], W["d"], MAT["inox_brig
 B = L["billot"]
 box("billot", B["x"], TOP_Y + B["t"] / 2, B["z"], B["w"], B["t"], B["d"], MAT["wood"], bevel=0.008)
 
-# Tiroirs (zones Projets) : 2 rangées de 3, un tiroir par projet.
-# Origine de l'objet = centre de la façade, pour que l'animation de
-# coulissement côté R3F soit un simple position.z.
+# Tiroirs (zones Projets) : 2 rangées de 4, un tiroir par projet (le 8e est
+# le « tiroir secret » du chef). Origine de l'objet = centre de la façade,
+# pour que l'animation de coulissement côté R3F soit un simple position.z.
 D = L["drawers"]
-for i in range(len(D["cols"]) * len(D["rows"])):
-    x = D["cols"][i % 3]
-    y = D["rows"][i // 3]
+NC = len(D["cols"])
+for i in range(NC * len(D["rows"])):
+    x = D["cols"][i % NC]
+    y = D["rows"][i // NC]
     front = box(f"front_{i}", x, y, D["z"], D["w"], D["h"], 0.04, MAT["inox_bright"])
     handle = cyl(f"handle_{i}", x, y + 0.08, D["z"] + 0.032, 0.012, 0.24, MAT["copper"], axis="x", vertices=12)
     caisson = box(f"caisson_{i}", x, y - 0.02, D["z"] - 0.16, D["w"] - 0.05, D["h"] - 0.07, 0.28, MAT["dark_metal"], bevel=0)
     # Bon de commande posé au fond du tiroir, visible à l'ouverture
-    slip = box(f"drawslip_{i}", x, y + 0.078, D["z"] - 0.14, 0.4, 0.004, 0.18, MAT["paper"], bevel=0, rot=(0, 0.04 - 0.02 * (i % 3), 0))
+    slip = box(f"drawslip_{i}", x, y + 0.078, D["z"] - 0.14, 0.4, 0.004, 0.18, MAT["paper"], bevel=0, rot=(0, 0.04 - 0.02 * (i % NC), 0))
     join(f"zone_drawer_{i}", [front, handle, caisson, slip])
 
 # ---------- le passe (zone Contact) ----------
