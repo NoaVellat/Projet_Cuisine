@@ -1568,6 +1568,12 @@ canvas {
   transform: translateY(-1px);
 }
 
+.resa-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+
 /* Confirmation après envoi : le client mail s'ouvre (+ repli email direct) */
 .resa-sent {
   font-size: 0.78rem;
