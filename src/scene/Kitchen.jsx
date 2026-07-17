@@ -437,7 +437,7 @@ export function Kitchen() {
         const i = Number(root.name.split('_')[2]);
         // Le 8e tiroir n'a pas de projet : c'est le tiroir secret du chef
         if (CONTENT.projects[i]) goDetail(CONTENT.projects[i].id);
-        else sfx.quack();
+        else sfx.secret();
       }
     } else if (view === 'overview' || zoneId !== zone) {
       goFocus(zone);

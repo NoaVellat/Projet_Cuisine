@@ -161,6 +161,20 @@ export const sfx = {
     coin(0);
     coin(0.16);
   },
+  // Le tiroir secret du chef : grincement de tiroir + carillon mystérieux
+  // ascendant, façon « passage caché découvert »
+  secret() {
+    if (!ctx) return;
+    playNoise({ dur: 0.25, type: 'bandpass', f0: 260, f1: 850, q: 3, gain: 0.16 });
+    const notes = [587.33, 698.46, 830.61, 1174.66]; // ré · fa · sol♯ · ré — arpège diminué, un peu louche
+    notes.forEach((f, i) => {
+      setTimeout(() => {
+        if (!ctx) return;
+        playTone(f, 0.7, 0.08, 5);
+        playTone(f * 2, 0.35, 0.02); // petit halo cristallin à l'octave
+      }, 90 * i);
+    });
+  },
 };
 
 // Ambiance : souffle grave continu de hotte + mijotage de la marmite
