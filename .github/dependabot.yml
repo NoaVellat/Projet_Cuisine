@@ -6,6 +6,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Les montées MAJEURES (React 19, Vite 8, R3F 9…) forment une migration
+    # coordonnée à faire à la main — pas des PRs isolées. Les failles de
+    # sécurité restent couvertes par le npm audit de la CI.
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: /
     schedule:
