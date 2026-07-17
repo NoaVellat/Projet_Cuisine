@@ -17,7 +17,7 @@
     "@react-three/fiber": "^8.17.10",
     "@react-three/postprocessing": "^2.16.3",
     "maath": "^0.10.8",
-    "react": "^18.3.1",
+    "react": "^19.2.7",
     "react-dom": "^18.3.1",
     "three": "^0.169.0",
     "zustand": "^5.0.1"
