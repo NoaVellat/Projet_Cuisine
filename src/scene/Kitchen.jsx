@@ -10,7 +10,9 @@ import { makeSubwayTexture, makeFloorTexture, makeTerminal, SUBWAY_PERIOD, FLOOR
 import { tiltHandlers } from '../ui/tilt';
 import { sfx } from '../audio/sfx';
 
-const MODEL = '/models/poste.glb';
+// Importé via Vite : le nom de fichier reçoit une empreinte de contenu
+// (poste-XXXX.glb), donc chaque nouvelle version casse le cache navigateur.
+import MODEL from '../assets/poste.glb?url';
 const COPPER = '#b87333';
 const NO_RAYCAST = () => null;
 
