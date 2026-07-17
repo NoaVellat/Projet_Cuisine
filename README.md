@@ -6,8 +6,7 @@
 > [noa-vellat.netlify.app](https://noa-vellat.netlify.app).
 >
 > **Ce fichier est aussi un document de passation** : il permet de reprendre le
-> projet dans une nouvelle session sans rien perdre. Le brief d'origine complet
-> est dans [`BRIEF_portfolio_3d_cuisine.md`](BRIEF_portfolio_3d_cuisine.md).
+> projet dans une nouvelle session sans rien perdre.
 
 ---
 

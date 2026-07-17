@@ -1,0 +1,12 @@
+# Veille de sécurité continue (recommandation du SECURITY_AUDIT.md) :
+# PR automatiques quand une dépendance npm ou une action GitHub a une mise à jour.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
