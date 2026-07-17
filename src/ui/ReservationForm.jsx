@@ -10,6 +10,7 @@ export function ReservationForm({ variant = 'dark' }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [msg, setMsg] = useState('');
+  const [honey, setHoney] = useState(''); // piège anti-spam : invisible, un humain le laisse vide
   const [status, setStatus] = useState('idle'); // idle | sending | sent | fallback
   const c = CONTENT.contact;
 
@@ -33,6 +34,7 @@ export function ReservationForm({ variant = 'dark' }) {
           _subject: `Réservation — ${name || 'via Le Poste'}`,
           _template: 'table',
           _captcha: 'false',
+          _honey: honey,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -47,6 +49,18 @@ export function ReservationForm({ variant = 'dark' }) {
 
   return (
     <form className={`resa-form resa-${variant}`} onSubmit={submit}>
+      {/* Honeypot FormSubmit : les bots remplissent tout, le service jette
+          alors l'envoi côté serveur. display:none = jamais vu par un humain. */}
+      <input
+        type="text"
+        name="_honey"
+        value={honey}
+        onChange={(e) => setHoney(e.target.value)}
+        style={{ display: 'none' }}
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+      />
       <div className="resa-row">
         <input
           aria-label="Votre nom"
