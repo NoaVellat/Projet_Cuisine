@@ -379,7 +379,7 @@ export function Kitchen() {
     if (zone === 'entry') {
       if (view === 'entry') enter();
     } else if (zone === 'cv') {
-      window.open(CONTENT.identity.cvUrl, '_blank');
+      window.open(CONTENT.identity.cvUrl, '_blank', 'noopener,noreferrer');
     } else if (zone === 'laptop') {
       // Easter egg : le portable du chef « boote » puis ouvre le mode classique
       sfx.tick();
