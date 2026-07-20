@@ -27,12 +27,21 @@ export const POIS = {
     target: new Vector3(pass.x, pass.shelfY, pass.z),
   },
   skills: {
-    // Plongée au-dessus de la saladette : les 5 bacs et leurs étiquettes
-    pos: new Vector3(saladette.x, 1.82, 0.78),
-    target: new Vector3(saladette.x, counter.h + worktop.t + saladette.h, saladette.z),
+    // Plongée au-dessus de la saladette : les 5 bacs et leurs étiquettes,
+    // ET le billot (mise en place, juste devant) dans le même cadre.
+    // Reculée + fov resserré (32° au lieu de 45°) : moins de distorsion de
+    // grand-angle rapproché, cadre plus large sans agrandir démesurément
+    // ce qui est proche de la caméra. Translatée vers la gauche (pos ET
+    // target) pour dégager le bac SOFT (le 5e, à droite) de sous le
+    // panneau docké — translation pure, pas de rotation, pour garder la
+    // rangée bien horizontale à l'écran.
+    pos: new Vector3(saladette.x + 0.1, 2.72, 2.10),
+    target: new Vector3(saladette.x + 0.1, 1.08, 0.02),
+    fov: 32,
   },
   board: {
-    pos: new Vector3(board.x, board.y, 0.75),
+    // Reculée pour cadrer le tableau agrandi + le ticket DOM docké à droite
+    pos: new Vector3(board.x, board.y, 1.05),
     target: new Vector3(board.x, board.y, board.z),
   },
   shelf: {

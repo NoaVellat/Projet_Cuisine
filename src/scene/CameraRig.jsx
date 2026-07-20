@@ -6,8 +6,10 @@ import { useSceneStore } from '../store/useSceneStore';
 import { CONTENT } from '../content/content';
 import { POIS } from './pois';
 import { LAYOUT } from './layout';
+import { hPlusFov } from './hplus';
 
 const LOOK = new Vector3();
+const BASE_FOV = 45; // celui du Canvas (App.jsx) — POIs sans `fov` s'y tiennent
 
 // POI dynamique du mode detail : la caméra plonge vers le tiroir ouvert.
 // Vecteurs réutilisés → zéro allocation par frame.
@@ -73,6 +75,17 @@ export function CameraRig() {
     easing.damp3(currentTarget.current, poi.target, st * 0.9, delta);
     LOOK.copy(currentTarget.current);
     state.camera.lookAt(LOOK);
+
+    // FOV par POI (ex. saladette : angle resserré + recul, pour cadrer la
+    // saladette ET le billot sans la distorsion d'un grand angle rapproché),
+    // corrigé Hor+ selon le ratio d'écran réel (cf. hPlusFov ci-dessus).
+    // Sans `fov` défini sur le POI, on reste sur celui du Canvas.
+    const aspect = state.size.width / state.size.height;
+    const targetFov = hPlusFov(poi.fov ?? BASE_FOV, aspect);
+    if (Math.abs(state.camera.fov - targetFov) > 0.01) {
+      easing.damp(state.camera, 'fov', targetFov, st, delta);
+      state.camera.updateProjectionMatrix();
+    }
   });
 
   return null;

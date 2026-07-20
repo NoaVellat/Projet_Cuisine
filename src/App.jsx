@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PerformanceMonitor, Environment, Lightformer, Html, useProgress } from '@react-three/drei';
 import { CameraRig } from './scene/CameraRig';
@@ -38,6 +38,12 @@ export default function App() {
   const setQuality = useSceneStore((s) => s.setQuality);
   // Écran tactile : DPR plafonné plus bas (budget GPU mobile, cf. brief)
   const coarse = useMemo(() => window.matchMedia('(pointer: coarse)').matches, []);
+  // Résolution de rendu (dpr) lissée en continu par PerformanceMonitor (onChange
+  // + factor 0→1) au lieu d'un aller-retour binaire 1.75 ↔ 1 : ce dernier
+  // produisait un « pop » de netteté bien visible dès qu'une baisse de FPS
+  // passagère était détectée. Le plancher reste net (jamais de dpr=1).
+  const dprRange = useMemo(() => (coarse ? [1.15, 1.5] : [1.3, 1.75]), [coarse]);
+  const [dpr, setDpr] = useState(dprRange[1]);
 
   useEffect(() => {
     let konamiAt = 0; // position dans la séquence
@@ -96,7 +102,7 @@ export default function App() {
     <>
       <Canvas
         shadows
-        dpr={quality === 'low' ? 1 : coarse ? [1, 1.5] : [1, 1.75]}
+        dpr={dpr}
         camera={{ fov: 45, position: [0, 1.6, 7.05] }}
         gl={{ antialias: false, powerPreference: 'high-performance' }}
         // Retour en arrière UNIQUEMENT si le clic « dans le vide » vient bien
@@ -111,6 +117,7 @@ export default function App() {
         <PerformanceMonitor
           onDecline={() => setQuality('low')}
           onIncline={() => setQuality('high')}
+          onChange={({ factor }) => setDpr(dprRange[0] + factor * (dprRange[1] - dprRange[0]))}
         >
           {/* Éclairage temps réel provisoire — remplacé par des lightmaps bakées en P3.
               Key froide plongeante (néons de cuisine) + fill + chaleur de la lampe du passe. */}

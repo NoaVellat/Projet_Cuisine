@@ -10,6 +10,7 @@
 # glTF (+Y up) restitue exactement les coordonnées three.js d'origine.
 import json
 import math
+import random
 from pathlib import Path
 
 import bpy
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 L = json.loads((ROOT / "src/scene/layout.json").read_text())
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
+random.seed(7)  # build reproductible : même « désordre » de mise en place à chaque régénération
 
 
 # ---------- conversions three.js <-> Blender ----------
@@ -35,6 +37,14 @@ def srgb(hexcode):
     h = hexcode.lstrip("#")
     c = [int(h[i : i + 2], 16) / 255 for i in (0, 2, 4)]
     return [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in c]
+
+
+def shade_hex(hexcode, factor):
+    """Éclaircit (factor>1) ou assombrit (factor<1) une couleur hex — sert à
+    varier la teinte des petits morceaux d'une même mise en place (haché)."""
+    h = hexcode.lstrip("#")
+    c = [max(0, min(255, round(int(h[i : i + 2], 16) * factor))) for i in (0, 2, 4)]
+    return "#%02x%02x%02x" % tuple(c)
 
 
 # ---------- matériaux ----------
@@ -77,11 +87,6 @@ MAT = {
     "lamp_bulb": make_mat("lamp_bulb", "#ffd9a0", 0.4, 0.0, "#ff9a3c", 5.0),
     "strip_glow": make_mat("strip_glow", "#f5e9d0", 0.4, 0.0, "#ffd9a0", 2.5),
     "bac_rim": make_mat("bac_rim", "#8b9096", 0.35, 0.8),
-    "mise_green": make_mat("mise_green", "#5a8a3c", 0.6),
-    "mise_red": make_mat("mise_red", "#a83c2e", 0.6),
-    "mise_yellow": make_mat("mise_yellow", "#d8b84a", 0.6),
-    "mise_cream": make_mat("mise_cream", "#e6dcc4", 0.6),
-    "mise_orange": make_mat("mise_orange", "#c9762e", 0.6),
     # Lettres : cuivre clair peu métallique + légère émission → lisibles dans
     # la pénombre (le cuivre metalness 1.0 vire au noir sans reflets à capter)
     "copper_text": make_mat("copper_text", "#d08a45", 0.35, 0.55, "#7a3f12", 0.5),
@@ -315,25 +320,27 @@ BO = L["board"]
 box("board_frame", BO["x"], BO["y"], BO["z"] - 0.005, BO["w"] + 0.05, BO["h"] + 0.05, 0.02, MAT["wood_dark"])
 box("zone_board", BO["x"], BO["y"], BO["z"] + 0.006, BO["w"], BO["h"], 0.012, MAT["slate"], bevel=0)
 # Le parcours en post-its qui se suivent, chronologiques et ascendants —
-# chaque élément du tableau raconte quelque chose.
+# chaque étape porte une ligne d'explication (retours UX : « TISSEC ?
+# Théodore ? on ne sait pas ce que c'est »).
 PARCOURS = [
-    ("2019", "BAC ES"),
-    ("2020", "TISSEC"),
-    ("2023", "THEODORE"),
-    ("2024", "5 MAINS"),
-    ("2025", "EPITECH"),
+    ("2019", "BAC ES", "bac général\nLycée Colbert"),
+    ("2020", "TISSEC", "chauffage &\nclimatisation"),
+    ("2023", "THÉODORE", "resto gastro\ndemi-chef"),
+    ("2024", "5 MAINS", "resto gastro\nchef de partie"),
+    ("2025", "EPITECH", "dev web\nen alternance"),
 ]
-POSTIT_XS = [-0.29, -0.145, 0.0, 0.145, 0.29]
-POSTIT_YS = [-0.17, -0.095, -0.02, 0.055, 0.13]
-postits = [text3d("board_title", "LE PARCOURS", BO["x"], BO["y"] + 0.24, BO["z"] + 0.016, 0.036, MAT["copper_text"], extrude=0.002)]
-for i, (year, label) in enumerate(PARCOURS):
+POSTIT_XS = [-0.315, -0.1575, 0.0, 0.1575, 0.315]
+POSTIT_YS = [-0.235, -0.135, -0.035, 0.065, 0.165]
+postits = [text3d("board_title", "LE PARCOURS", BO["x"], BO["y"] + 0.315, BO["z"] + 0.016, 0.042, MAT["copper_text"], extrude=0.002)]
+for i, (year, label, detail) in enumerate(PARCOURS):
     px_, py_ = BO["x"] + POSTIT_XS[i], BO["y"] + POSTIT_YS[i]
-    postits.append(box(f"postit_{i}", px_, py_, BO["z"] + 0.014, 0.12, 0.12, 0.004,
+    postits.append(box(f"postit_{i}", px_, py_, BO["z"] + 0.014, 0.14, 0.14, 0.004,
                        MAT[f"postit_{i}"], bevel=0, rot=(0, 0.05 - 0.03 * i, 0)))
-    postits.append(text3d(f"postit_txt_{i}", f"{year}\n{label}", px_, py_, BO["z"] + 0.019, 0.02, MAT["ink"], extrude=0.001))
+    postits.append(text3d(f"postit_txt_{i}", f"{year}\n{label}", px_, py_ + 0.028, BO["z"] + 0.019, 0.019, MAT["ink"], extrude=0.001))
+    postits.append(text3d(f"postit_sub_{i}", detail, px_, py_ - 0.04, BO["z"] + 0.019, 0.0155, MAT["ink"], extrude=0.001))
     if i < len(PARCOURS) - 1:
         postits.append(text3d(f"postit_arrow_{i}", ">", (POSTIT_XS[i] + POSTIT_XS[i + 1]) / 2 + BO["x"],
-                              (POSTIT_YS[i] + POSTIT_YS[i + 1]) / 2 + BO["y"], BO["z"] + 0.016, 0.03,
+                              (POSTIT_YS[i] + POSTIT_YS[i + 1]) / 2 + BO["y"], BO["z"] + 0.016, 0.032,
                               MAT["copper_text"], extrude=0.001))
 join("board_parcours", postits)
 
@@ -367,10 +374,50 @@ box("ticket_paper", T["x"], TOP_Y + 0.16, T["z"] + 0.02, 0.07, 0.09, 0.003, MAT[
 SA = L["saladette"]
 sal_top = TOP_Y + SA["h"]
 box("saladette_body", SA["x"], TOP_Y + SA["h"] / 2, SA["z"], SA["w"], SA["h"], SA["d"], MAT["inox_bright"], bevel=0.006)
-# Chaque bac = une zone interactive (famille de skills), étiquette cuivre en
-# façade. Couleurs alignées sur les légumes du billot : tomate=FRONT rouge,
-# courgette=BACK vert, citron=DEVOPS jaune, oignon=MERN crème, carotte=SOFT orange.
-colors = ["mise_red", "mise_green", "mise_yellow", "mise_cream", "mise_orange"]
+
+# Chaque bac = une zone interactive (famille de skills). Couleurs alignées sur
+# les légumes du billot : tomate=FRONT rouge, courgette=BACK vert, citron=
+# DEVOPS jaune, oignon=MERN crème, carotte=SOFT orange. Le contenu est une
+# mise en place HACHÉE (petits dés jumbled, 3 nuances par bac) plutôt qu'un
+# bloc plat uni — plus proche d'une vraie saladette de brigade.
+MISE_HEX = ["#a83c2e", "#5a8a3c", "#d8b84a", "#e6dcc4", "#c9762e"]
+mise_variants = [
+    [
+        make_mat(f"mise_{i}_a", hx, 0.55),
+        make_mat(f"mise_{i}_b", shade_hex(hx, 1.18), 0.6),
+        make_mat(f"mise_{i}_c", shade_hex(hx, 0.78), 0.65),
+    ]
+    for i, hx in enumerate(MISE_HEX)
+]
+
+
+def dice_pile(prefix, cx, cz, y0, w, d, mats, count=18, size=0.024):
+    """Mise en place hachée : mélange de petits dés (cubes biseautés) et de
+    morceaux arrondis (~1 pièce sur 4, icosphères légèrement aplaties — grain,
+    pois, rondelle) pour plus de détail/variété que de simples dés uniformes.
+    Position/taille/rotation aléatoires (seed fixe → build reproductible),
+    teinte piochée parmi les 3 nuances du bac."""
+    pieces = []
+    for k in range(count):
+        px = cx + random.uniform(-w / 2 + size * 0.5, w / 2 - size * 0.5)
+        pz = cz + random.uniform(-d / 2 + size * 0.5, d / 2 - size * 0.5)
+        mat = random.choice(mats)
+        if random.random() < 0.25:
+            r = size * random.uniform(0.26, 0.38)
+            sy = random.uniform(0.7, 0.9)
+            pieces.append(sphere(f"{prefix}_{k}", px, y0 + r * sy * 0.85, pz, r, mat, scale=(1, sy, 1)))
+        else:
+            sx = size * random.uniform(0.55, 1.0)
+            sy = size * random.uniform(0.32, 0.5)
+            sz = size * random.uniform(0.55, 1.0)
+            pieces.append(box(
+                f"{prefix}_{k}", px, y0 + sy / 2, pz, sx, sy, sz, mat,
+                bevel=0.0022,
+                rot=(random.uniform(-0.22, 0.22), random.uniform(0, math.pi), random.uniform(-0.22, 0.22)),
+            ))
+    return pieces
+
+
 bac_names = ["FRONT", "BACK", "DEVOPS", "MERN", "SOFT"]
 n = SA["bacs"]
 usable = SA["w"] - 0.06
@@ -379,8 +426,8 @@ bac_labels = []
 for i in range(n):
     bx = SA["x"] - usable / 2 + step * (i + 0.5)
     rim = box(f"bacrim_{i}", bx, sal_top + 0.008, SA["z"], step - 0.02, 0.016, SA["d"] - 0.06, MAT["bac_rim"], bevel=0)
-    content = box(f"mise_{i}", bx, sal_top + 0.02, SA["z"], step - 0.045, 0.02, SA["d"] - 0.085, MAT[colors[i % len(colors)]], bevel=0)
-    join(f"zone_bac_{i}", [rim, content])
+    pile = dice_pile(f"mise_{i}", bx, SA["z"], sal_top + 0.014, step - 0.05, SA["d"] - 0.095, mise_variants[i % len(mise_variants)])
+    join(f"zone_bac_{i}", [rim, *pile])
     bac_labels.append(text3d(f"baclabel_{i}", bac_names[i], bx, TOP_Y + SA["h"] - 0.05, SA["z"] + SA["d"] / 2 + 0.004, 0.032, MAT["copper_text"], extrude=0.002))
 join("bac_labels", bac_labels)
 

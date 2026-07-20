@@ -1,7 +1,34 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSceneStore } from '../store/useSceneStore';
 import { CONTENT } from '../content/content';
 import { SallePanel } from './SallePanel';
+import { SkillsPanel } from './SkillsPanel';
+import { BoardPanel } from './BoardPanel';
+import { ContactPanel } from './ContactPanel';
+import { ChefPanel } from './ChefPanel';
+import { sfx } from '../audio/sfx';
+
+const MOBILE_DOCK_PANELS = {
+  board: BoardPanel,
+  pass: ContactPanel,
+  shelf: ChefPanel,
+};
+
+// Répète les pastilles 3D de Kitchen.jsx (HOTSPOTS) mais en menu DOM fixe :
+// sur un écran étroit, projeter 7 étiquettes en 3D les fait toutes se
+// chevaucher (le cadrage a été calé pour du 16:9 desktop). Un menu fixe ne
+// dépend d'aucune projection caméra — jamais de chevauchement, quelle que
+// soit la taille d'écran. Bascule CSS pure (cf. .mobile-zone-menu / .hotspot
+// dans le media query mobile) : les deux sont toujours montés, un seul visible.
+const MOBILE_ZONES = [
+  { zone: 'drawers', label: 'Les projets' },
+  { zone: 'skills', label: 'Compétences' },
+  { zone: 'board', label: 'Le parcours' },
+  { zone: 'shelf', label: 'Le chef' },
+  { zone: 'pass', label: 'Contact' },
+  { zone: 'cv', label: 'Mon CV' },
+  { zone: 'laptop', label: 'Mode classique' },
+];
 
 // Libellés dans la voix « Mise en Place » du portfolio (table VOICE)
 export const ZONES = [
@@ -38,6 +65,20 @@ export function Overlay({ onClassic }) {
   const muted = useSceneStore((s) => s.muted);
   const setMuted = useSceneStore((s) => s.setMuted);
   const rush = useSceneStore((s) => s.rush);
+  // Tactile : ni souris à « bouger », ni touche Entrée/Échap au clavier —
+  // les libellés s'adaptent (retours UX : le texte desktop n'avait aucun sens sur mobile).
+  const coarse = useMemo(() => window.matchMedia('(pointer: coarse)').matches, []);
+
+  const onMobileZone = (zone) => {
+    if (zone === 'cv') {
+      window.open(CONTENT.identity.cvUrl, '_blank', 'noopener,noreferrer');
+    } else if (zone === 'laptop') {
+      sfx.tick();
+      useSceneStore.getState().bootClassic();
+    } else {
+      goFocus(zone);
+    }
+  };
 
   // Panneau de bienvenue : une seule fois, à la 1re arrivée en vue d'ensemble.
   // Invite à balayer le poste (souris) et à tout regarder avant de plonger.
@@ -86,6 +127,18 @@ export function Overlay({ onClassic }) {
         ))}
       </nav>
 
+      {/* Menu mobile : remplace les pastilles 3D sur petit écran (cf. commentaire
+          plus haut) — masqué par défaut, visible via le media query mobile. */}
+      {view === 'overview' && (
+        <nav className="mobile-zone-menu" aria-label="Zones du poste">
+          {MOBILE_ZONES.map((z) => (
+            <button key={z.zone} className="mobile-zone-chip" onClick={() => onMobileZone(z.zone)}>
+              {z.label}
+            </button>
+          ))}
+        </nav>
+      )}
+
       {/* Accès à la salle du restaurant : sa porte est hors cadre en vue
           d'ensemble, ce repère (DOM, clic fiable) y mène. */}
       {view === 'overview' && (
@@ -108,6 +161,40 @@ export function Overlay({ onClassic }) {
         </aside>
       )}
 
+      {/* Les Ingrédients : dockée en DOM (comme la salle) pour ne jamais
+          s'enfoncer sous le bas de l'écran quel que soit le cadrage caméra. */}
+      {view === 'focus' && zoneId === 'skills' && (
+        <aside
+          className="skills-dock"
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <SkillsPanel />
+        </aside>
+      )}
+
+      {/* Board/pass/shelf : équivalent mobile du ticket 3D (cf. FocusPanel
+          dans Kitchen.jsx, masqué en dessous de 560px) — même contenu,
+          docké plein écran plutôt que projeté (jamais de débordement). */}
+      {view === 'focus' && MOBILE_DOCK_PANELS[zoneId] && (
+        <div
+          className="ticket-mobile-dock"
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {(() => {
+            const Panel = MOBILE_DOCK_PANELS[zoneId];
+            return (
+              <article className="ticket">
+                <Panel />
+              </article>
+            );
+          })()}
+        </div>
+      )}
+
       {/* Bienvenue : vue d'ensemble avant de plonger — on invite à tout regarder */}
       {welcome && view === 'overview' && (
         <div className="welcome" role="dialog" aria-label="Bienvenue">
@@ -115,9 +202,18 @@ export function Overlay({ onClassic }) {
             <p className="welcome-kicker">— Service ! Bienvenue en cuisine —</p>
             <p className="welcome-text">
               Voici le poste du chef. Prenez le temps de tout regarder :
-              <strong> bougez la souris</strong> pour balayer la scène. Chaque objet
-              — tiroirs, saladette, tableau, passe, portes — est cliquable et mène à
-              une partie du portfolio.
+              {coarse ? (
+                <strong> baladez-vous du bout du doigt</strong>
+              ) : (
+                <strong> bougez la souris</strong>
+              )}{' '}
+              pour balayer la scène, puis
+              {coarse ? (
+                <strong> touchez le menu ci-dessous</strong>
+              ) : (
+                <strong> suivez les pastilles cuivrées</strong>
+              )}{' '}
+              — chacune mène à une partie du portfolio.
             </p>
             <button className="btn btn-lg" onClick={() => setWelcome(false)} autoFocus>
               Commencer le service
@@ -134,7 +230,8 @@ export function Overlay({ onClassic }) {
             Pousser les portes
           </button>
           <p className="entry-hint">
-            {CONTENT.identity.dispo} · ou touche Entrée
+            {CONTENT.identity.dispo}
+            {!coarse && ' · ou touche Entrée'}
           </p>
         </div>
       )}
@@ -148,7 +245,8 @@ export function Overlay({ onClassic }) {
           <span className="hint">
             {rush
               ? '🔥 Coup de feu ! Service !'
-              : HOVER_LABELS[hovered] ?? 'Cliquez une zone du poste · Échap pour revenir'}
+              : HOVER_LABELS[hovered] ??
+                (coarse ? 'Touchez une zone du poste' : 'Cliquez une zone du poste · Échap pour revenir')}
           </span>
         )}
       </footer>

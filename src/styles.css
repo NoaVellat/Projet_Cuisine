@@ -276,8 +276,9 @@ canvas {
 
 .ticket {
   position: relative;
-  width: 290px;
-  max-height: 76vh;
+  width: 345px;
+  max-width: calc(100vw - 28px);
+  max-height: 82vh;
   overflow-y: auto;
   animation: ticket-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.15);
   /* papier thermique : léger dégradé + fines lignes d'impression */
@@ -286,9 +287,9 @@ canvas {
     linear-gradient(160deg, #f8f3e8 0%, var(--paper) 55%, #ece5d4 100%);
   color: #23201b;
   font-family: var(--mono);
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   line-height: 1.45;
-  padding: 14px 18px 12px;
+  padding: 16px 20px 14px;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
   /* bords dentelés haut et bas, comme un ticket déchiré à la barre */
   clip-path: polygon(
@@ -318,7 +319,7 @@ canvas {
 
 .ticket-brand {
   margin: 0 0 6px;
-  font-size: 0.58rem;
+  font-size: 0.64rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   opacity: 0.65;
@@ -328,7 +329,7 @@ canvas {
   position: absolute;
   top: 16px;
   right: 12px;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
   font-weight: 800;
   opacity: 0.1;
   pointer-events: none;
@@ -342,7 +343,7 @@ canvas {
   color: #a34e1b;
   border-radius: 3px;
   transform: rotate(-2.5deg);
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -366,9 +367,9 @@ canvas {
 .chip {
   border: 1px solid var(--copper);
   color: #7c3f10;
-  padding: 2px 9px;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 0.6rem;
+  font-size: 0.72rem;
   letter-spacing: 0.03em;
   background: rgba(184, 115, 51, 0.07);
 }
@@ -386,7 +387,7 @@ canvas {
   margin: 0;
   padding: 5px 0;
   border-bottom: 1px dotted #b9ab90;
-  font-size: 0.7rem;
+  font-size: 0.82rem;
 }
 
 .contact-k {
@@ -428,7 +429,7 @@ canvas {
 .timeline strong {
   display: block;
   color: #a34e1b;
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   letter-spacing: 0.1em;
 }
 
@@ -452,7 +453,7 @@ canvas {
 
 .ticket-foot {
   text-align: center;
-  font-size: 0.56rem;
+  font-size: 0.62rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   opacity: 0.55;
@@ -488,14 +489,14 @@ canvas {
 
 .ticket h2 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 1.1rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .ticket h3 {
   margin: 10px 0 4px;
-  font-size: 0.8rem;
+  font-size: 0.92rem;
   text-transform: uppercase;
 }
 
@@ -529,7 +530,7 @@ canvas {
 
 .ticket-kicker {
   margin: 0 0 3px;
-  font-size: 0.66rem;
+  font-size: 0.74rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #8a4d16;
@@ -543,7 +544,7 @@ canvas {
 }
 
 .ticket-chips {
-  font-size: 0.72rem;
+  font-size: 0.84rem;
   letter-spacing: 0.02em;
   opacity: 0.85;
 }
@@ -557,7 +558,7 @@ canvas {
 .ticket-timeline {
   list-style: none;
   padding-left: 0;
-  font-size: 0.72rem;
+  font-size: 0.84rem;
 }
 
 .ticket-timeline strong {
@@ -570,7 +571,7 @@ canvas {
 
 .ticket-detail {
   display: block;
-  font-size: 0.66rem;
+  font-size: 0.78rem;
   opacity: 0.75;
 }
 
@@ -587,9 +588,9 @@ canvas {
   border-radius: 3px;
   background: transparent;
   font: inherit;
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  padding: 5px 2px;
+  padding: 6px 2px;
   cursor: pointer;
   letter-spacing: 0.04em;
   transition: transform 0.12s, box-shadow 0.15s;
@@ -683,6 +684,112 @@ canvas {
   font-size: 0.72rem;
 }
 
+/* ---------- Pastilles cliquables (overview) ---------- */
+
+/* Chaque zone du poste porte une pastille cuivrée + étiquette : l'appel au
+   clic explicite (retours UX : « on ne sait pas où cliquer »). */
+.hotspot {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  font-family: var(--mono);
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.hotspot-dot {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--copper);
+  border: 2px solid #ffe3c2;
+  box-shadow: 0 0 10px rgba(184, 115, 51, 0.9), 0 2px 6px rgba(0, 0, 0, 0.5);
+  flex-shrink: 0;
+}
+
+/* Onde qui pulse autour de la pastille : « c'est vivant, c'est cliquable » */
+.hotspot-dot::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(224, 163, 92, 0.9);
+  animation: hotspot-ping 1.9s ease-out infinite;
+}
+
+@keyframes hotspot-ping {
+  0% {
+    transform: scale(0.6);
+    opacity: 1;
+  }
+  75%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+.hotspot-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+  background: rgba(20, 20, 23, 0.7);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(184, 115, 51, 0.55);
+  border-radius: 6px;
+  padding: 5px 11px;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  transition: background 0.15s, color 0.15s, transform 0.12s;
+}
+
+.hotspot-label em {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 0.64rem;
+  opacity: 0.72;
+}
+
+.hotspot:hover .hotspot-label,
+.hotspot:focus-visible .hotspot-label {
+  background: var(--copper);
+  color: #16130f;
+  transform: translateY(-1px);
+}
+
+/* Étiquette à gauche de la pastille : pour les hotspots proches du bord
+   droit de l'écran (portable, ticket CV), sinon leur texte déborde vers
+   le bouton « La Salle » ou hors cadre. */
+.hotspot-flip {
+  flex-direction: row-reverse;
+}
+
+.hotspot-flip .hotspot-label {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.hotspot:hover .hotspot-label em {
+  opacity: 0.85;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hotspot-dot::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* ---------- Repère 3D vers la salle (overview) ---------- */
 
 .room-marker {
@@ -724,15 +831,19 @@ canvas {
   }
 }
 
-/* ---------- Salle : panneau réservations docké à droite ---------- */
+/* ---------- Salle & Compétences : panneaux dockés à droite ----------
+   Fixés à l'écran (pas projetés en 3D) : quel que soit le cadrage caméra,
+   ils restent entièrement visibles — max-height + scroll interne au lieu
+   de risquer de s'enfoncer sous le bas de l'écran (coupé par overflow:hidden
+   sur body). */
 
-.salle-dock {
+.salle-dock,
+.skills-dock {
   position: fixed;
   top: 50%;
   right: 22px;
   transform: translateY(-50%);
   z-index: 15;
-  width: 392px;
   max-width: calc(100vw - 44px);
   max-height: 88vh;
   overflow-y: auto;
@@ -740,25 +851,66 @@ canvas {
   pointer-events: auto;
 }
 
+.salle-dock {
+  width: 436px;
+}
+
+.skills-dock {
+  width: 410px;
+}
+
 /* Le wrapper tilt de la carte réservations (même effet que les tickets) */
 .salle-tilt {
   will-change: transform;
 }
 
-.salle-ticket {
+.salle-ticket,
+.skills-ticket {
   width: 100%;
   max-height: none;
 }
 
 .salle-hello {
-  font-size: 0.92rem;
+  font-size: 1rem;
+}
+
+/* Compétences : un cran au-dessus du ticket standard (« regrossis-les »),
+   sans risque de débordement puisque le dock gère son propre scroll. */
+.skills-ticket {
+  font-size: 1rem;
+}
+
+.skills-ticket h2 {
+  font-size: 1.24rem;
+}
+
+.skills-ticket h3 {
+  font-size: 1.08rem;
+}
+
+.skills-ticket .ticket-kicker {
+  font-size: 0.84rem;
+}
+
+.skills-ticket .chip {
+  font-size: 0.84rem;
+  padding: 4px 12px;
+}
+
+.skills-ticket .bac-tabs button {
+  font-size: 0.82rem;
+  padding: 9px 2px;
+}
+
+.skills-ticket .ticket-note {
+  font-size: 0.94rem;
 }
 
 /* ---------- Salle du restaurant : accueil, parcours, réservation ---------- */
 
 .salle-h {
   margin: 15px 0 6px !important;
-  font-size: 0.82rem !important;
+  font-size: 0.92rem !important;
   letter-spacing: 0.1em;
   color: #8a4d16;
   border-bottom: 1px dotted #b9ab90;
@@ -832,8 +984,8 @@ canvas {
 }
 
 .contact-chips a {
-  font-size: 0.62rem;
-  padding: 3px 9px;
+  font-size: 0.72rem;
+  padding: 4px 10px;
   border: 1px solid var(--copper);
   border-radius: 999px;
   color: #7c3f10;
@@ -857,7 +1009,7 @@ canvas {
 
 .ticket-thumb {
   position: relative;
-  height: 94px;
+  height: 112px;
   margin: 0 0 10px;
   border-radius: 4px;
   overflow: hidden;
@@ -1221,14 +1373,14 @@ canvas {
 /* La carte — plats */
 .cl-menu {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
 }
 
 .cl-dish {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  padding: 22px;
+  padding: 26px;
   background: rgba(255, 255, 255, 0.02);
   transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
@@ -1247,21 +1399,21 @@ canvas {
 
 .cl-dish-course {
   font-family: var(--mono);
-  font-size: 0.68rem;
+  font-size: 0.76rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--copper);
 }
 
 .cl-dish-num {
-  font-size: 1.6rem;
+  font-size: 1.8rem;
   font-weight: 800;
   opacity: 0.12;
 }
 
 .cl-dish h3 {
   margin: 6px 0 10px;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
 }
 
 .cl-dish h3 a {
@@ -1278,13 +1430,13 @@ canvas {
   border-left: 2px solid var(--copper);
   padding-left: 10px;
   margin: 0 0 10px;
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
 .cl-dish-desc {
   margin: 0 0 14px;
-  font-size: 0.9rem;
-  line-height: 1.55;
+  font-size: 1rem;
+  line-height: 1.6;
   opacity: 0.82;
 }
 
@@ -1299,8 +1451,8 @@ canvas {
 
 .cl-tags li {
   font-family: var(--mono);
-  font-size: 0.68rem;
-  padding: 3px 10px;
+  font-size: 0.78rem;
+  padding: 4px 12px;
   border: 1px solid rgba(184, 115, 51, 0.5);
   border-radius: 999px;
   color: #d79b62;
@@ -1318,8 +1470,8 @@ canvas {
 /* Les ingrédients — bacs colorés */
 .cl-bacs {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
 }
 
 .cl-bac {
@@ -1338,12 +1490,12 @@ canvas {
   align-items: center;
   gap: 10px;
   margin: 0 0 12px;
-  font-size: 1rem;
+  font-size: 1.15rem;
 }
 
 .cl-bac-tag {
   font-family: var(--mono);
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   letter-spacing: 0.08em;
   padding: 3px 8px;
   border-radius: 4px;
@@ -1407,25 +1559,26 @@ canvas {
 .cl-tl-year {
   font-family: var(--mono);
   color: var(--copper);
-  font-size: 0.8rem;
-  min-width: 62px;
+  font-size: 0.92rem;
+  min-width: 68px;
 }
 
 .cl-timeline strong {
   display: block;
+  font-size: 1.08rem;
 }
 
 .cl-tl-sub {
   display: block;
   opacity: 0.7;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
 }
 
 .cl-timeline em {
   display: block;
   margin-top: 4px;
-  font-size: 0.78rem;
-  opacity: 0.6;
+  font-size: 0.88rem;
+  opacity: 0.65;
 }
 
 /* Réservations */
@@ -1675,3 +1828,209 @@ canvas {
   font-size: 0.8rem;
   opacity: 0.75;
 }
+
+/* ---------- Mobile (poste 3D + mode classique) ----------
+   Tout ce qui précède a été calé à l'œil en desktop 16:9 : le HUD, les
+   pastilles et le repère « La Salle » se chevauchaient et débordaient sur
+   un écran de téléphone en portrait. Cf. aussi la correction Hor+ du FOV
+   caméra (CameraRig.jsx) qui évite que le cadrage horizontal se resserre
+   sur un écran étroit. */
+/* Menu mobile (remplace les pastilles 3D) : caché par défaut, montré dans
+   le media query mobile ci-dessous. */
+.mobile-zone-menu {
+  display: none;
+}
+
+/* Dock mobile des tickets board/pass/shelf (cf. Overlay.jsx + FocusPanel
+   dans Kitchen.jsx) : cachée par défaut, montrée dans le media query mobile. */
+.ticket-mobile-dock {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  /* Les pastilles 3D restent projetées mais illisibles/chevauchées sur un
+     écran étroit (cadrage calé en 16:9 desktop) → menu DOM fixe à la place. */
+  .hotspot {
+    display: none;
+  }
+
+  .mobile-zone-menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    position: fixed;
+    top: 92px;
+    left: 12px;
+    right: 12px;
+    z-index: 12;
+    pointer-events: auto;
+  }
+
+  .mobile-zone-chip {
+    appearance: none;
+    border: 1px solid var(--copper);
+    background: rgba(20, 20, 23, 0.78);
+    backdrop-filter: blur(4px);
+    color: var(--ink);
+    font: inherit;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    padding: 7px 11px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .mobile-zone-chip:active {
+    background: var(--copper);
+    color: #16130f;
+  }
+
+  .hud-top {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .brand {
+    padding: 6px 10px;
+    max-width: 62vw;
+  }
+
+  .brand strong {
+    font-size: 0.92rem;
+  }
+
+  /* Le rôle en sous-titre coûte 2 lignes de large pour peu d'info : on le
+     retire sur petit écran, le nom seul suffit dans le HUD compact. */
+  .brand span {
+    display: none;
+  }
+
+  .hud-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .hud-top .btn {
+    padding: 7px 11px;
+    font-size: 0.76rem;
+  }
+
+  .hud-bottom {
+    padding: 8px 10px;
+  }
+
+  .hint {
+    font-size: 0.72rem;
+    padding: 5px 10px;
+    max-width: calc(100vw - 20px);
+    text-align: center;
+  }
+
+  /* Pastilles cliquables : moitié moins encombrantes, sinon 7 étiquettes ne
+     tiennent pas sur 380px de large sans se chevaucher. */
+  .hotspot {
+    gap: 5px;
+  }
+
+  .hotspot-dot {
+    width: 11px;
+    height: 11px;
+    border-width: 1.5px;
+  }
+
+  .hotspot-label {
+    padding: 4px 8px;
+    font-size: 0.64rem;
+    border-radius: 5px;
+  }
+
+  .hotspot-label em {
+    font-size: 0.55rem;
+  }
+
+  /* Repère salle : descendu au-dessus du bandeau du bas plutôt que centré
+     verticalement — au centre, il tombait en plein sur les pastilles. */
+  .room-marker {
+    top: auto;
+    bottom: 64px;
+    transform: none;
+    right: 12px;
+    font-size: 0.68rem;
+    padding: 7px 12px;
+  }
+
+  .room-marker:hover,
+  .room-marker:focus-visible {
+    transform: translateX(-3px) scale(1.03);
+  }
+
+  .welcome-card {
+    max-width: calc(100vw - 24px);
+    padding: 16px 18px 18px;
+  }
+
+  .welcome-text {
+    font-size: 0.86rem;
+  }
+
+  .entry-hint {
+    font-size: 0.7rem;
+    padding: 0 12px;
+  }
+
+  /* Tickets projetés en 3D (drawers/board/pass/shelf) : le max-width de
+     .ticket les empêche de déborder, on resserre encore un peu le texte
+     pour que le ticket tienne sans scroll horizontal ni police minuscule. */
+  .ticket {
+    font-size: 0.82rem;
+    padding: 13px 15px 12px;
+  }
+
+  .skills-dock,
+  .salle-dock {
+    right: 10px;
+    max-width: calc(100vw - 20px);
+  }
+
+  .bac-tabs {
+    flex-wrap: wrap;
+  }
+
+  .bac-tabs button {
+    flex: 1 1 30%;
+  }
+
+  /* Tickets board/pass/shelf : la version 3D (Kitchen.jsx, Html center)
+     déborde d'un côté sur écran étroit dès que son ancrage n'est pas pile
+     centré — on la masque, le dock DOM ci-dessous (Overlay.jsx) prend le
+     relais avec le même contenu (ui/BoardPanel.jsx etc.). */
+  .ticket-3d-anchor {
+    display: none;
+  }
+
+  .ticket-mobile-dock {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 96px 14px 74px;
+    pointer-events: none;
+  }
+
+  .ticket-mobile-dock > .ticket {
+    pointer-events: auto;
+    max-height: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .hud-top .btn:not(.btn-icon) span,
+  .brand {
+    max-width: 52vw;
+  }
+}
+

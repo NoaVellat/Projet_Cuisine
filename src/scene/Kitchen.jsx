@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Html, useCursor, useGLTF } from '@react-three/drei';
 import { Object3D } from 'three';
 import { easing } from 'maath';
@@ -9,6 +9,11 @@ import { LAYOUT as L } from './layout';
 import { makeSubwayTexture, makeFloorTexture, makeTerminal, SUBWAY_PERIOD, FLOOR_PERIOD } from './textures';
 import { tiltHandlers } from '../ui/tilt';
 import { sfx } from '../audio/sfx';
+import { hPlusDistanceFactorRatio } from './hplus';
+import { TicketBody, Chips } from '../ui/TicketBits';
+import { ContactPanel } from '../ui/ContactPanel';
+import { BoardPanel } from '../ui/BoardPanel';
+import { ChefPanel } from '../ui/ChefPanel';
 
 // Importé via Vite : le nom de fichier reçoit une empreinte de contenu
 // (poste-XXXX.glb), donc chaque nouvelle version casse le cache navigateur.
@@ -45,6 +50,65 @@ for (let i = 0; i < 2; i++) ZONE_BY_NODE[`zone_glass_${i}`] = 'glass';
 
 // Une couleur par famille de stack (mêmes teintes que bacs et légumes)
 const BAC_COLORS = ['#c0392b', '#5a8a3c', '#c8a636', '#a89a7c', '#c9762e'];
+
+// Zones qui « respirent » en cuivre en vue d'ensemble : les sections du
+// portfolio (les easter eggs, eux, se découvrent au survol).
+const GLOW_HINT_ZONES = new Set(['drawers', 'skills', 'board', 'shelf', 'pass', 'cv', 'salle', 'laptop']);
+
+// Pastilles « où cliquer » de la vue d'ensemble : ancrées en 3D, rendues en
+// DOM (lisibles et cliquables à coup sûr — retours UX : « on ne sait pas où
+// cliquer »). La salle a déjà son repère DOM dédié (room-marker).
+const HOTSPOTS = [
+  { zone: 'drawers', label: 'Les projets', sub: 'ouvrez les tiroirs', pos: [0, (L.drawers.rows[0] + L.drawers.rows[1]) / 2, L.drawers.z + 0.22] },
+  { zone: 'skills', label: 'Compétences', sub: 'la saladette', pos: [L.saladette.x, 1.26, L.saladette.z + 0.2] },
+  // Au-dessus du cadre (haut du tableau ≈ board.y+0.39) : ne recouvre plus
+  // le titre « LE PARCOURS » ni les post-its comme avant.
+  { zone: 'board', label: 'Le parcours', sub: 'le tableau', pos: [L.board.x - 0.28, L.board.y + 0.52, L.board.z + 0.15] },
+  { zone: 'shelf', label: 'Le chef', sub: 'son histoire', pos: [L.book.x, L.shelf.y + 0.12, L.shelf.z + 0.15] },
+  { zone: 'pass', label: 'Contact', sub: 'le passe', pos: [L.pass.x, L.pass.shelfY + 0.06, L.pass.z + 0.1] },
+  // À côté de la machine (pas au-dessus) : hauteur ~ celle du haut de la
+  // machine, décalée sur le côté (gauche, à l'écart du laptop) pour la
+  // montrer sans la cacher.
+  { zone: 'cv', label: 'Mon CV', sub: 'ticket à imprimer', pos: [L.ticket.x - 0.22, 1.05, L.ticket.z], flip: true },
+  { zone: 'laptop', label: 'Mode classique', sub: 'le portable', pos: [L.laptop.x, 1.12, L.laptop.z], flip: true },
+];
+
+function Hotspots() {
+  const goFocus = useSceneStore((s) => s.goFocus);
+  const setHovered = useSceneStore((s) => s.setHovered);
+  const act = (zone) => {
+    if (zone === 'cv') {
+      window.open(CONTENT.identity.cvUrl, '_blank', 'noopener,noreferrer');
+    } else if (zone === 'laptop') {
+      sfx.tick();
+      useSceneStore.getState().bootClassic();
+    } else {
+      goFocus(zone);
+    }
+  };
+  return (
+    <>
+      {HOTSPOTS.map((h) => (
+        // zIndexRange bas : les pastilles restent SOUS le panneau de bienvenue
+        // (z-index 8) et le HUD
+        <Html key={h.zone} position={h.pos} center zIndexRange={[7, 2]}>
+          <button
+            className={h.flip ? 'hotspot hotspot-flip' : 'hotspot'}
+            onClick={() => act(h.zone)}
+            onPointerOver={() => setHovered(h.zone)}
+            onPointerOut={() => setHovered(null)}
+          >
+            <span className="hotspot-dot" aria-hidden="true" />
+            <span className="hotspot-label">
+              {h.label}
+              <em>{h.sub}</em>
+            </span>
+          </button>
+        </Html>
+      ))}
+    </>
+  );
+}
 
 // Vignette d'aperçu d'un projet : image dans public/previews/<id>.webp.
 // Si le fichier manque, l'<img> onError laisse voir le monogramme de secours.
@@ -148,6 +212,12 @@ export function Kitchen() {
   const bacIndex = useSceneStore((s) => s.bacIndex);
   const setBac = useSceneStore((s) => s.setBac);
   const rush = useSceneStore((s) => s.rush);
+  // Compense la correction Hor+ du FOV (CameraRig) : sans ça, le ticket-3d
+  // (Html distanceFactor, dont la taille écran dépend du FOV vertical)
+  // rétrécit visiblement sur un écran étroit alors que tout le reste
+  // s'agrandit pour compenser le cadrage.
+  const { width, height } = useThree((s) => s.size);
+  const dfRatio = hPlusDistanceFactorRatio(45, width / height);
   useCursor(!!hovered);
   const hot = useRef(null); // zone actuellement survolée (racine GLB)
   const zoneRoots = useRef([]); // toutes les racines interactives (glow par frame)
@@ -252,11 +322,22 @@ export function Kitchen() {
     // dt borné : évite les sauts d'animation après un onglet en arrière-plan
     const step = Math.min(delta, 0.05);
     const hotName = hot.current?.name;
+    const t = _.clock.elapsedTime;
+    clockNow.current = t;
 
     // Glow de survol dérivé de hot.current CHAQUE frame → jamais « bloqué »
     // (auto-réparant : si un pointerout est manqué, l'état se recorrige seul).
+    // En vue d'ensemble, les zones principales « respirent » en cuivre pour
+    // signaler le cliquable avant même le survol ; idem les portes à l'accueil.
+    const breathe = 0.1 + Math.sin(t * 2.2) * 0.05;
     for (const root of zoneRoots.current) {
-      const target = root === hot.current ? 0.32 : 0;
+      const zone = ZONE_BY_NODE[root.name];
+      const idle =
+        (view === 'overview' && GLOW_HINT_ZONES.has(zone)) ||
+        (view === 'entry' && zone === 'entry')
+          ? breathe
+          : 0;
+      const target = root === hot.current ? 0.5 : idle;
       root.traverse((o) => {
         if (!o.isMesh) return;
         for (const m of [].concat(o.material)) {
@@ -267,13 +348,20 @@ export function Kitchen() {
 
     // Tous les tiroirs, y compris le 8e (secret, sans projet) : rush = « coup
     // de feu » (code Konami) → tout s'ouvre ; survol en focus → entrebâillé.
+    // z0 = position REELLE « fermé » du nœud GLB, capturée une fois au repos —
+    // PAS L.drawers.z : le pack meshopt (quantization) recale le node.position
+    // du groupe pour compenser le repère normalisé (même mécanisme que le scale
+    // du zone_bell plus bas). Utiliser L.drawers.z directement décalait TOUS
+    // les tiroirs de plusieurs cm vers l'avant en permanence (fermés = déjà
+    // entrouverts), surtout visible depuis la plongée de la saladette.
     for (let i = 0; i < 8; i++) {
       const node = nodes[`zone_drawer_${i}`];
       if (!node) continue;
+      if (node.userData.z0 === undefined) node.userData.z0 = node.position.z;
       const p = CONTENT.projects[i];
       const open = rush || (p && view === 'detail' && projectId === p.id);
       const peek = !open && zoneId === 'drawers' && hotName === `zone_drawer_${i}` ? 0.06 : 0;
-      easing.damp(node.position, 'z', L.drawers.z + (open ? L.drawers.slide : peek), 0.25, step);
+      easing.damp(node.position, 'z', node.userData.z0 + (open ? L.drawers.slide : peek), 0.25, step);
     }
 
     // Battants d'entrée : ressort sous-amorti (dépassent puis se stabilisent),
@@ -300,8 +388,6 @@ export function Kitchen() {
     // Vie de la cuisine : flammes et four qui vacillent, canard qui se
     // dandine, couteau qui hache, casseroles-notes qui se balancent,
     // terminal du laptop qui tape son build.
-    const t = _.clock.elapsedTime;
-    clockNow.current = t;
     // En dev : scène + caméra exposées pour les scripts de validation (tools/)
     if (import.meta.env.DEV) {
       window.__scene = _.scene;
@@ -556,7 +642,7 @@ export function Kitchen() {
             L.drawers.z + L.drawers.slide + 0.03,
           ]}
           rotation={[-0.5, 0, 0]}
-          distanceFactor={0.3}
+          distanceFactor={0.3 * dfRatio}
         >
           <div className="ticket-tilt" {...tiltHandlers(14)}>
             <article className="ticket ticket-3d" role="dialog" aria-label={openProject.title}>
@@ -578,146 +664,52 @@ export function Kitchen() {
         </Html>
       )}
 
-      {/* Les Ingrédients — la saladette, un bac par famille */}
-      <FocusPanel zoneId="skills" position={[L.saladette.x + 0.42, 1.12, 0.2]}>
-        <TicketBody kicker="Les Ingrédients" title="La saladette" footer="produits frais · maison">
-          <div className="bac-tabs" role="tablist">
-            {CONTENT.skills.map((s, i) => (
-              <button
-                key={s.bac}
-                role="tab"
-                aria-selected={i === bacIndex}
-                className={i === bacIndex ? 'on' : ''}
-                style={
-                  i === bacIndex
-                    ? { background: BAC_COLORS[i], borderColor: BAC_COLORS[i], color: '#fdf9ef' }
-                    : { borderColor: BAC_COLORS[i], color: '#4a423a' }
-                }
-                onClick={() => setBac(i)}
-              >
-                {s.bac}
-              </button>
-            ))}
-          </div>
-          <h3 style={{ color: BAC_COLORS[bacIndex] }}>{CONTENT.skills[bacIndex].poste}</h3>
-          <Chips items={CONTENT.skills[bacIndex].items} color={BAC_COLORS[bacIndex]} />
-          <p className="ticket-note">
-            Chaque bac de la saladette est cliquable — comme les légumes du billot.
-          </p>
-        </TicketBody>
-      </FocusPanel>
+      {/* Les Ingrédients — la saladette : panneau docké en DOM, cf. Overlay.jsx
+          (ne s'enfonce jamais sous le bas de l'écran comme le faisait
+          l'ancienne version projetée en 3D). */}
 
-      {/* Service ! — contact au passe (les réservations vivent en salle) */}
+      {/* Service ! — contact au passe (les réservations vivent en salle).
+          Contenu partagé avec le dock mobile : cf. ui/ContactPanel.jsx. */}
       <FocusPanel zoneId="pass" position={[L.pass.x, L.pass.shelfY - 0.02, L.pass.z + 0.15]}>
-        <TicketBody kicker="— Service ! —" title="Le chef répond au passe" footer="réponse sous 24 h · lyon">
-          <p>{CONTENT.contact.pitch}</p>
-          <div className="contact-list">
-            <p className="contact-row">
-              <span className="contact-k">✉ Email</span>
-              <a href={`mailto:${CONTENT.contact.email}`}>{CONTENT.contact.email}</a>
-            </p>
-            <p className="contact-row">
-              <span className="contact-k">☎ Tél</span>
-              <a href={`tel:+33${CONTENT.contact.telHref.slice(1)}`}>{CONTENT.contact.tel}</a>
-            </p>
-            <p className="contact-row">
-              <span className="contact-k">⌥ GitHub</span>
-              <a href={CONTENT.contact.github.url} target="_blank" rel="noreferrer">
-                {CONTENT.contact.github.handle}
-              </a>
-            </p>
-            <p className="contact-row">
-              <span className="contact-k">in LinkedIn</span>
-              <a href={CONTENT.contact.linkedin.url} target="_blank" rel="noreferrer">
-                {CONTENT.contact.linkedin.handle}
-              </a>
-            </p>
-            <p className="contact-row">
-              <span className="contact-k">⎙ CV</span>
-              <a href={CONTENT.identity.cvUrl} download>
-                CV_Noa_Vellat.pdf
-              </a>
-            </p>
-          </div>
-          <p className="ticket-note">
-            ⚠ Allergènes : bugs, code non testé &amp; deadlines floues — jamais
-            servis dans cette maison.
-          </p>
-          <p className="stamp stamp-green">{CONTENT.identity.dispo}</p>
-        </TicketBody>
+        <ContactPanel />
       </FocusPanel>
 
-      {/* La Brigade — états de service sur le tableau */}
-      <FocusPanel zoneId="board" position={[L.board.x + 0.47, L.board.y - 0.05, L.board.z + 0.3]}>
-        <TicketBody kicker="La Brigade" title="États de service" footer="ancienneté vérifiée">
-          <ul className="timeline">
-            {CONTENT.about.timeline.map((t) => (
-              <li key={t.year}>
-                <strong>{t.year}</strong>
-                <span className="timeline-role">{t.title}</span> — {t.sub}
-                {t.detail && <em className="ticket-detail">{t.detail}</em>}
-              </li>
-            ))}
-          </ul>
-          <Chips items={CONTENT.about.tags} />
-        </TicketBody>
+      {/* La Brigade — états de service sur le tableau.
+          Contenu partagé avec le dock mobile : cf. ui/BoardPanel.jsx. */}
+      <FocusPanel zoneId="board" position={[L.board.x + 0.61, L.board.y - 0.02, L.board.z + 0.3]}>
+        <BoardPanel />
       </FocusPanel>
 
-      {/* Le Chef — récit de reconversion */}
+      {/* Le Chef — récit de reconversion.
+          Contenu partagé avec le dock mobile : cf. ui/ChefPanel.jsx. */}
       <FocusPanel zoneId="shelf" position={[L.book.x - 0.42, L.shelf.y + 0.05, L.shelf.z + 0.2]}>
-        <TicketBody kicker="Le Chef" title="De la brigade au terminal" footer="recette de la maison">
-          {CONTENT.about.paras.map((p) => (
-            <p key={p.slice(0, 16)}>{p}</p>
-          ))}
-          <p className="ticket-note">« {CONTENT.about.quote} »</p>
-        </TicketBody>
+        <ChefPanel />
       </FocusPanel>
 
       {/* La Salle — le restaurant : accueil du maître d'hôtel, parcours,
           réservation (contact) et livre d'or */}
+
+      {/* Pastilles « où cliquer » : uniquement en vue d'ensemble */}
+      {view === 'overview' && <Hotspots />}
     </group>
   );
 }
 
+// Panneau ancré en 3D (Html center) : board/pass/shelf. Sur écran étroit, ce
+// ticket quasi pleine largeur déborde d'un côté dès que son ancrage 3D n'est
+// pas pile centré (retours UX : texte tronqué à gauche/droite) — le dock
+// mobile équivalent (Overlay.jsx, contenu partagé via ui/BoardPanel.jsx etc.)
+// prend le relais ; `.ticket-3d-anchor` masque celui-ci en dessous de 560px
+// (cf. media query mobile de styles.css), les deux ne sont jamais visibles
+// en même temps.
 function FocusPanel({ zoneId, position, children }) {
   const view = useSceneStore((s) => s.view);
   const current = useSceneStore((s) => s.zoneId);
   if (view === 'overview' || current !== zoneId) return null;
   return (
     <Html position={position} center>
-      <article className="ticket">{children}</article>
+      <article className="ticket ticket-3d-anchor">{children}</article>
     </Html>
-  );
-}
-
-// Habillage commun des bons : en-tête de la maison, numéro fantôme,
-// code-barres et pied de ticket — la DA « ticket thermique ».
-function TicketBody({ kicker, title, num, children, footer = 'le poste · service continu' }) {
-  return (
-    <>
-      <header className="ticket-head">
-        <p className="ticket-brand">◆ Le Poste — cuisine du chef ◆</p>
-        {num && <span className="ticket-num">{num}</span>}
-        <p className="ticket-kicker">{kicker}</p>
-        <h2>{title}</h2>
-      </header>
-      {children}
-      <div className="barcode" aria-hidden="true" />
-      <p className="ticket-foot">{footer}</p>
-    </>
-  );
-}
-
-function Chips({ items, color }) {
-  const style = color ? { borderColor: color, color, background: `${color}14` } : undefined;
-  return (
-    <div className="chips">
-      {items.map((t) => (
-        <span className="chip" key={t} style={style}>
-          {t}
-        </span>
-      ))}
-    </div>
   );
 }
 
