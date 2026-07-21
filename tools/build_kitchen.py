@@ -533,6 +533,43 @@ for k in range(3):
     ut.append(o)
 join("utensils", ut)
 
+# Vitrine à couteaux japonais : mur nu à gauche du piano (seul pan de mur du
+# poste resté sans décor). PAS de vitre en verre : à cet angle rasant, un
+# panneau transparent even à faible opacité réfléchissait bien trop la lumière
+# (Fresnel) et cachait les lames plus qu'il ne les montrait — un présentoir à
+# l'air libre sur fond sombre (contraste net avec l'acier clair) se voit bien
+# mieux et sonne plus juste pour une cuisine pro (barre aimantée ouverte).
+# Couteaux montés à plat contre le fond (silhouette effilée de knife_blade,
+# cf. plus haut) — la fonction dessine la lame posée à plat (three.js XZ) ;
+# une rotation de 90° autour de X la redresse contre le mur (three.js XY,
+# face au spectateur), même bascule que cyl(axis="z"). Chaque lame reprend
+# aussi le mors + manche + pommeau du couteau du chef (cf. plus bas), pour
+# une silhouette de couteau bien lisible plutôt qu'un simple manche-tube.
+VIT_X, VIT_Y, VIT_Z = -2.75, 1.78, L["wall"]["z"]
+VIT_W, VIT_H = 0.52, 0.34
+vit = [
+    box("vitrine_frame", VIT_X, VIT_Y, VIT_Z + 0.015, VIT_W, VIT_H, 0.03, MAT["wood_dark"], bevel=0.006),
+    box("vitrine_back", VIT_X, VIT_Y, VIT_Z + 0.031, VIT_W - 0.05, VIT_H - 0.05, 0.008, MAT["dark_metal"]),
+]
+# (décalage manche, décalage hauteur, longueur lame) — de la plus courte
+# (petty) à la plus longue (gyuto), rangées du haut vers le bas, mors alignés
+# à gauche façon barre aimantée.
+KNIVES = [(-0.15, 0.115, 0.12), (-0.155, 0.035, 0.155),
+          (-0.16, -0.045, 0.185), (-0.165, -0.125, 0.215)]
+KZ = VIT_Z + 0.045  # juste devant le fond sombre
+for i, (dx, dy, blen) in enumerate(KNIVES):
+    hx, hy = VIT_X + dx, VIT_Y + dy
+    blade = knife_blade(f"vitrine_knife_{i}", hx, hy, KZ, blen, MAT["knife_steel"], thickness=0.0035)
+    blade.rotation_euler = (1.5708, 0, 0.015 * (i - 1.5))
+    vit.append(blade)
+    vit.append(cyl(f"vitrine_bolster_{i}", hx - 0.006, hy + 0.008, KZ, 0.013, 0.016,
+                   MAT["knife_steel"], axis="x", vertices=12))
+    vit.append(cyl(f"vitrine_handle_{i}", hx - 0.059, hy + 0.008, KZ, 0.011, 0.07,
+                   MAT["knife_handle"], axis="x", vertices=12))
+    vit.append(sphere(f"vitrine_pommel_{i}", hx - 0.094, hy + 0.008, KZ, 0.012,
+                      MAT["knife_handle"], scale=(0.7, 1, 1)))
+join("vitrine_couteaux", vit)
+
 # Torchon plié sur sa barre, flanc gauche du poste (suit la largeur de la table)
 SIDE = -C["w"] / 2
 tor = [cyl("torchon_rod", SIDE - 0.035, 0.76, 0.08, 0.008, 0.3, MAT["inox_dark"], axis="z", vertices=10)]
