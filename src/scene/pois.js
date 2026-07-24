@@ -55,6 +55,21 @@ export const POIS = {
     pos: new Vector3(0.72, 1.34, 1.62),
     target: new Vector3(LAYOUT.laptop.x, 1.05, LAYOUT.laptop.z - 0.09),
   },
+  // Mini-jeu du steak : plongée serrée sur la poêle du feu avant-droit du piano
+  // (le steak y grésille). Cadrée à gauche/haut pour laisser le HUD-ticket docké
+  // à droite. Le steak est en LAYOUT.piano.x + burners[3] ; on le vise de face,
+  // un peu en plongée, assez près pour voir la viande changer de couleur.
+  steak: (() => {
+    const b = LAYOUT.piano;
+    const stx = b.x + b.burners[3][0];
+    const stz = b.z + b.burners[3][1];
+    return {
+      pos: new Vector3(stx + 0.28, 1.62, stz + 1.25),
+      target: new Vector3(stx - 0.05, 1.0, stz),
+      fov: 40,
+    };
+  })(),
+
   // La salle du restaurant (droite) : la caméra se pose juste passé la porte
   // et regarde la PROFONDEUR de la salle — l'allée au tapis rouge, les lustres,
   // le miroir du fond. Le maître d'hôtel accueille à gauche du cadre (le

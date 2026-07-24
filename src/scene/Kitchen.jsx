@@ -1,9 +1,11 @@
 import { useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Html, useCursor, useGLTF } from '@react-three/drei';
-import { Object3D } from 'three';
+import { Object3D, Color } from 'three';
 import { easing } from 'maath';
 import { useSceneStore } from '../store/useSceneStore';
+import { useSteakStore, BURN_TOTAL } from '../game/useSteakStore';
+import { sizzleLevel } from '../audio/sfx';
 import { CONTENT } from '../content/content';
 import { LAYOUT as L } from './layout';
 import { makeSubwayTexture, makeFloorTexture, makeTerminal, SUBWAY_PERIOD, FLOOR_PERIOD } from './textures';
@@ -47,9 +49,45 @@ for (let i = 0; i < 5; i++) ZONE_BY_NODE[`zone_bac_${i}`] = 'skills';
 for (let i = 0; i < 4; i++) ZONE_BY_NODE[`zone_note_${i}`] = 'notes';
 for (let i = 0; i < 5; i++) ZONE_BY_NODE[`zone_veg_${i}`] = 'veg';
 for (let i = 0; i < 2; i++) ZONE_BY_NODE[`zone_glass_${i}`] = 'glass';
+// Les deux instruments ajoutés au poste : les manettes du piano de cuisson
+// (une touche par manette) et la barre d'ustensiles (la percussion).
+for (let i = 0; i < 7; i++) ZONE_BY_NODE[`zone_knob_${i}`] = 'knob';
+for (let i = 0; i < 4; i++) ZONE_BY_NODE[`zone_ust_${i}`] = 'ust';
+// Mini-jeu : le steak à saisir sur le feu avant-droit du piano.
+ZONE_BY_NODE.zone_steak = 'steak';
 
 // Une couleur par famille de stack (mêmes teintes que bacs et légumes)
 const BAC_COLORS = ['#c0392b', '#5a8a3c', '#c8a636', '#a89a7c', '#c9762e'];
+
+// Pendule des ustensiles frappés : [amortissement, pulsation, amplitude].
+// Chacun a son inertie — la louche tape lourd et lent, le fouet part vite et
+// léger — sinon les quatre se balancent comme un seul objet.
+const UST_SWING = [[1.5, 8.6, 0.26], [1.7, 9.8, 0.24], [2.1, 11.5, 0.2], [2.6, 13.5, 0.17]];
+
+// Position monde du steak (feu avant-droit du piano) — pour la vapeur du grésil.
+const STEAK_POS = [L.piano.x + L.piano.burners[3][0], 1.02, L.piano.z + L.piano.burners[3][1]];
+
+// Couleur de la viande selon la chaleur cumulée de la face visible : cru rouge →
+// saisi → bien cuit → carbonisé. Interpolation dans un scratch Color (zéro alloc).
+const STEAK_STOPS = [
+  [0.0, new Color('#b23a47')], // cru
+  [0.5, new Color('#8a4a30')], // saisi
+  [0.95, new Color('#4f2f1e')], // bien cuit
+  [1.5, new Color('#2a1b12')], // très cuit
+  [2.4, new Color('#100c0a')], // carbonisé
+];
+const _steakCol = new Color();
+function steakColor(v) {
+  for (let i = 1; i < STEAK_STOPS.length; i++) {
+    const [t1, c1] = STEAK_STOPS[i];
+    if (v <= t1 || i === STEAK_STOPS.length - 1) {
+      const [t0, c0] = STEAK_STOPS[i - 1];
+      const f = Math.min(1, Math.max(0, (v - t0) / (t1 - t0)));
+      return _steakCol.copy(c0).lerp(c1, f);
+    }
+  }
+  return _steakCol.copy(STEAK_STOPS[0][1]);
+}
 
 // Zones qui « respirent » en cuivre en vue d'ensemble : les sections du
 // portfolio (les easter eggs, eux, se découvrent au survol).
@@ -71,6 +109,9 @@ const HOTSPOTS = [
   // montrer sans la cacher.
   { zone: 'cv', label: 'Mon CV', sub: 'ticket à imprimer', pos: [L.ticket.x - 0.22, 1.05, L.ticket.z], flip: true },
   { zone: 'laptop', label: 'Mode classique', sub: 'le portable', pos: [L.laptop.x, 1.12, L.laptop.z], flip: true },
+  // Le mini-jeu, au-dessus de la poêle du piano (à gauche → pastille dépliée
+  // vers la droite pour ne pas sortir du cadre).
+  { zone: 'steak', label: '🥩 Cuire un steak', sub: 'le coup de feu', pos: [STEAK_POS[0], 1.16, STEAK_POS[2] + 0.05] },
 ];
 
 function Hotspots() {
@@ -82,6 +123,10 @@ function Hotspots() {
     } else if (zone === 'laptop') {
       sfx.tick();
       useSceneStore.getState().bootClassic();
+    } else if (zone === 'steak') {
+      // On plonge sur le piano ET on lance la première commande
+      goFocus('steak');
+      useSteakStore.getState().start();
     } else {
       goFocus(zone);
     }
@@ -148,13 +193,15 @@ function zoneRootOf(object) {
   return o ?? null;
 }
 
-// Matériaux dont l'émission fait partie du design : exclus du glow hover
-const NO_GLOW = new Set(['laptop_screen', 'lamp_bulb', 'lamp_shade']);
+// Matériaux dont l'émission fait partie du design : exclus du glow hover.
+// La viande et son gras y sont aussi : un steak cru qui rougeoie en cuivre au
+// survol serait bizarre, et sa couleur est déjà pilotée par la cuisson.
+const NO_GLOW = new Set(['laptop_screen', 'lamp_bulb', 'lamp_shade', 'steak_meat', 'steak_fat']);
 
 // Décor suspendu au mur (batterie de cuivre, ustensiles, bocaux, herbes) :
 // on coupe leur projection d'ombre — leur silhouette dure sur le carrelage
 // était l'« ombre moche ». Ils sont sur des barres → pas d'ombre de contact utile.
-const NO_WALL_SHADOW = /note_|potrail|utrail|utensils|louche|ecumoire|spatule|fouet|jar_|zone_glass|herb|piano_pan|piano_saucepan/;
+const NO_WALL_SHADOW = /note_|potrail|utrail|zone_ust|louche|ecumoire|spatule|fouet|jar_|zone_glass|herb|piano_pan|piano_saucepan|knifebar|wallknife/;
 function castsWallShadow(o) {
   for (let n = o; n; n = n.parent) if (NO_WALL_SHADOW.test(n.name)) return true;
   return false;
@@ -226,10 +273,17 @@ export function Kitchen() {
   const stoveLight = useRef();
   const spotTarget = useMemo(() => new Object3D(), []);
   const noteHits = useRef([-99, -99, -99, -99]); // instants de frappe (xylophone)
+  const knobHits = useRef([-99, -99, -99, -99, -99, -99, -99]); // quarts de tour des manettes
+  const ustHits = useRef([-99, -99, -99, -99]); // instants de frappe (ustensiles)
   const bellAt = useRef(-99); // instant du dernier coup de sonnette
   const clockNow = useRef(0);
   const term = useRef(null); // terminal animé du laptop
   const lastTerm = useRef(0);
+  // Mini-jeu du steak : cuisson temps réel (source de vérité), le store n'en
+  // reçoit qu'un miroir throttlé pour le HUD. `round` resynchronise à chaque
+  // nouvelle commande, `lastFlips` déclenche le saut au retournement.
+  const steak = useRef({ a: 0, b: 0, round: -1, lastFlips: 0, flipAt: -99, spin: 0, spinBase: 0, lastPush: 0 });
+  const steakPhase = useSteakStore((s) => s.phase); // pour (dé)monter la vapeur du grésil
 
   // Préparation du GLB, une seule fois : matériaux clonés sur les zones
   // (pour le glow hover sans affecter le décor qui partage le même inox),
@@ -393,26 +447,51 @@ export function Kitchen() {
       window.__scene = _.scene;
       window.__cam = _.camera;
     }
+    // Une manette qu'on vient de tourner pousse SON foyer : montée franche au
+    // clic puis retour au ralenti — l'oreille entend la note, l'œil voit d'où
+    // elle vient. L'ordre des manettes suit celui du piano (build_kitchen.py) :
+    // 0-3 les feux vifs, 4 le coupe-feu, 5 la friteuse, 6 le four.
+    const knobSurge = (i) => {
+      const dt = t - knobHits.current[i];
+      return dt >= 0 && dt < 0.9 ? 1 - dt / 0.9 : 0;
+    };
+    const glow = (node, base, surge) => {
+      if (!node) return;
+      node.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of [].concat(o.material)) m.emissiveIntensity = base * surge;
+      });
+    };
+    const cooking = useSteakStore.getState().phase === 'cooking';
     for (let i = 0; i < 4; i++) {
-      const n = nodes[`flame_${i}`];
-      if (!n) continue;
-      n.traverse((o) => {
-        if (!o.isMesh) return;
-        for (const m of [].concat(o.material)) {
-          m.emissiveIntensity = 1.9 + Math.sin(t * 13 + i * 2.4) * 0.5 + Math.sin(t * 31 + i) * 0.3;
-        }
-      });
+      // Le feu avant-droit (3) pousse tant que le steak grésille dessus
+      const cook = i === 3 && cooking ? 0.7 : 0;
+      glow(
+        nodes[`flame_${i}`],
+        1.9 + Math.sin(t * 13 + i * 2.4) * 0.5 + Math.sin(t * 31 + i) * 0.3,
+        1 + knobSurge(i) * 1.3 + cook
+      );
     }
-    if (nodes.oven_glow) {
-      nodes.oven_glow.traverse((o) => {
-        if (!o.isMesh) return;
-        for (const m of [].concat(o.material)) {
-          m.emissiveIntensity = 1.4 + Math.sin(t * 7) * 0.25 + Math.sin(t * 23) * 0.15;
-        }
-      });
+    // Coupe-feu : la fonte garde la chaleur, elle respire plus lentement
+    glow(nodes.coupefeu_glow, 1.2 + Math.sin(t * 3.5) * 0.2, 1 + knobSurge(4) * 1.5);
+    // Bain de friture : frémissement rapide et serré
+    glow(nodes.friteuse_glow, 0.7 + Math.sin(t * 9) * 0.12 + Math.sin(t * 27) * 0.06, 1 + knobSurge(5) * 1.4);
+    // Four : la porte-hublot est un panneau opaque sombre, l'émission reste
+    // basse (~0.45) pour lire comme une braise derrière la vitre, pas comme un
+    // rectangle orange fluo ; elle monte bien quand on pousse la manette du four.
+    glow(nodes.oven_glow, 0.42 + Math.sin(t * 5) * 0.06, 1 + knobSurge(6) * 1.6);
+    // Quart de tour de la manette : elle part et revient, le repère cuivre
+    // rend le geste lisible même de loin.
+    for (let i = 0; i < 7; i++) {
+      const n = nodes[`zone_knob_${i}`];
+      if (!n) continue;
+      const dt = t - knobHits.current[i];
+      n.rotation.z = dt >= 0 && dt < 0.6 ? -Math.sin((dt / 0.6) * Math.PI) * 1.2 : 0;
     }
     if (stoveLight.current) {
-      stoveLight.current.intensity = 0.6 + Math.sin(t * 15) * 0.12 + Math.sin(t * 37) * 0.07;
+      // Seuls les foyers du dessus (feux + coupe-feu) éclairent la pièce
+      const surge = Math.max(knobSurge(0), knobSurge(1), knobSurge(2), knobSurge(3), knobSurge(4));
+      stoveLight.current.intensity = (0.6 + Math.sin(t * 15) * 0.12 + Math.sin(t * 37) * 0.07) * (1 + surge * 1.5);
     }
     if (nodes.zone_duck) {
       nodes.zone_duck.rotation.y = Math.sin(t * 1.3) * 0.18;
@@ -442,6 +521,56 @@ export function Kitchen() {
       if (!n) continue;
       const dt = t - noteHits.current[i];
       n.rotation.z = dt < 4 ? Math.exp(-dt * 1.6) * Math.sin(dt * 9.5) * 0.3 : 0;
+    }
+    // Ustensiles frappés : même pendule, une inertie par ustensile (UST_SWING)
+    for (let i = 0; i < 4; i++) {
+      const n = nodes[`zone_ust_${i}`];
+      if (!n) continue;
+      const [damp, w, amp] = UST_SWING[i];
+      const dt = t - ustHits.current[i];
+      n.rotation.z = dt < 4 ? Math.exp(-dt * damp) * Math.sin(dt * w) * amp : 0;
+    }
+
+    // ---- Mini-jeu du steak ----
+    // Source de vérité = ce ref ; le store ne reçoit qu'un miroir throttlé pour
+    // le HUD. `round`/`flips` du store pilotent resync et saut, sans coupler la
+    // logique à l'endroit d'où start()/flip() sont appelés (scène OU bouton HUD).
+    const stk = useSteakStore.getState();
+    const S = steak.current;
+    if (S.round !== stk.round) {
+      S.round = stk.round;
+      S.a = 0; S.b = 0; S.spinBase = 0; S.spin = 0; S.lastFlips = 0; S.flipAt = -99;
+    }
+    if (stk.flips !== S.lastFlips) {
+      S.lastFlips = stk.flips;
+      S.flipAt = t;
+      S.spinBase += Math.PI; // demi-tour : la face saisie remonte
+    }
+    if (stk.phase === 'cooking') {
+      const RATE = 0.135; // ~ « à point » en ~8 s de cuisson bien répartie
+      if (stk.down === 0) S.a += RATE * step; else S.b += RATE * step;
+      const total = S.a + S.b;
+      sizzleLevel((total - 0.9) / (BURN_TOTAL - 0.9)); // le grésil s'affole vers le cramé
+      if (t - S.lastPush > 0.08) { stk.setCook(S.a, S.b); S.lastPush = t; }
+    }
+    const steakNode = nodes.zone_steak;
+    if (steakNode) {
+      // Face visible = celle qui n'est PAS en contact (la saisie faite remonte)
+      const visible = stk.down === 0 ? S.b : S.a;
+      const col = steakColor(stk.phase === 'idle' ? 0 : visible);
+      steakNode.traverse((o) => {
+        if (!o.isMesh) return;
+        for (const m of [].concat(o.material)) if (m.name === 'steak_meat') m.color.copy(col);
+      });
+      if (steakNode.userData.y0 === undefined) {
+        steakNode.userData.y0 = steakNode.position.y;
+        steakNode.userData.rx0 = steakNode.rotation.x;
+      }
+      const dt = t - S.flipAt;
+      const hop = dt >= 0 && dt < 0.4 ? Math.sin((dt / 0.4) * Math.PI) * 0.07 : 0;
+      steakNode.position.y = steakNode.userData.y0 + hop;
+      easing.damp(S, 'spin', S.spinBase, 0.09, step);
+      steakNode.rotation.x = steakNode.userData.rx0 + S.spin;
     }
     // Terminal : redessiné ~8 fois/s, inutile de le faire à chaque frame
     if (term.current && t - lastTerm.current > 0.12) {
@@ -491,6 +620,24 @@ export function Kitchen() {
     } else if (zone === 'glass') {
       // 2e instrument : les bocaux, timbre « verre » (plus aigu, cristallin)
       sfx.glassNote(Number(root.name.split('_')[2]));
+    } else if (zone === 'knob') {
+      // 3e instrument : le piano de cuisson tient enfin son nom — une manette,
+      // une touche (pentatonique : aucune combinaison ne sonne faux).
+      const i = Number(root.name.split('_')[2]);
+      sfx.pianoKey(i);
+      knobHits.current[i] = clockNow.current;
+    } else if (zone === 'ust') {
+      // 4e instrument : la barre d'ustensiles, section percussion
+      const i = Number(root.name.split('_')[2]);
+      sfx.utensilHit(i);
+      ustHits.current[i] = clockNow.current;
+    } else if (zone === 'steak') {
+      // Mini-jeu : 1er clic = on lance (et on plonge sur le piano) ; pendant la
+      // cuisson chaque clic RETOURNE le steak ; sur résultat, on relance.
+      const g = useSteakStore.getState();
+      if (view === 'overview' || zoneId !== 'steak') goFocus('steak');
+      if (g.phase === 'cooking') g.flip();
+      else g.start();
     } else if (zone === 'veg') {
       // Un légume = une famille de stack (couleur assortie au bac)
       const i = Number(root.name.split('_')[2]);
@@ -565,13 +712,11 @@ export function Kitchen() {
         size={0.042}
         height={0.5}
       />
-      <Steam
-        position={[L.piano.x + L.piano.burners[3][0], 1.06, L.piano.z + L.piano.burners[3][1]]}
-        count={4}
-        size={0.03}
-        height={0.32}
-        speed={0.38}
-      />
+      {/* Le grésil du steak : la vapeur ne monte QUE pendant la cuisson (un
+          steak cru posé dans la poêle ne fume pas) */}
+      {steakPhase === 'cooking' && (
+        <Steam position={STEAK_POS} count={7} size={0.028} height={0.36} speed={0.5} />
+      )}
       <pointLight
         ref={stoveLight}
         position={[L.piano.x, 1.15, L.piano.z + 0.2]}

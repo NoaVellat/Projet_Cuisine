@@ -7,6 +7,7 @@ import { Effects } from './scene/Effects';
 import { Overlay } from './ui/Overlay';
 import { ClassicMode } from './ui/ClassicMode';
 import { useSceneStore, goBack } from './store/useSceneStore';
+import { useSteakStore } from './game/useSteakStore';
 import { initAudio, setAudioMuted, sfx } from './audio/sfx';
 
 // Accès au store depuis la console / les outils de capture, en dev uniquement.
@@ -83,6 +84,11 @@ export default function App() {
   useEffect(() => {
     return useSceneStore.subscribe((s, prev) => {
       if (s.muted !== prev.muted) setAudioMuted(s.muted);
+      if (s.view === prev.view && s.zoneId === prev.zoneId) return;
+      // Quitter le piano (Échap, retour, autre zone) coupe le mini-jeu et son grésil
+      if (!(s.view === 'focus' && s.zoneId === 'steak') && useSteakStore.getState().phase !== 'idle') {
+        useSteakStore.getState().reset();
+      }
       if (s.view === prev.view) return;
       if (prev.view === 'entry') {
         initAudio(s.muted);              // le contexte naît en respectant le mute

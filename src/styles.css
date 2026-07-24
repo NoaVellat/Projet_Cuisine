@@ -888,6 +888,186 @@ canvas {
   font-size: 1.08rem;
 }
 
+/* ---------- Mini-jeu : cuire le steak (bon de commande + jauge) ---------- */
+.steak-dock {
+  position: fixed;
+  top: 50%;
+  right: 22px;
+  transform: translateY(-50%);
+  z-index: 15;
+  width: 360px;
+  max-width: calc(100vw - 44px);
+  max-height: 88vh;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+
+.steak-ticket {
+  width: 100%;
+  max-height: none;
+  text-align: center;
+}
+
+.steak-kicker {
+  margin: 0 0 6px;
+  color: var(--copper);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+}
+
+.steak-order {
+  margin: 0 0 14px;
+  font-size: 1.02rem;
+}
+.steak-order strong {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Jauge : bandes de cuisson colorées, repère de la commande, aiguille */
+.steak-gauge {
+  margin: 0 0 12px;
+}
+.steak-gauge-bar {
+  position: relative;
+  height: 24px;
+  border: 1px solid #23201b;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #d9cfba;
+}
+.steak-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--band);
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.25);
+}
+/* Le créneau demandé par la table : liseré clair + halo, bien visible */
+.steak-target {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 2px solid #fff;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 0 10px rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+/* L'aiguille : cuisson courante (somme des deux faces) */
+.steak-needle {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  margin-left: -1.5px;
+  background: #1b1b20;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.85);
+  transition: left 0.09s linear;
+}
+.steak-gauge-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 0.62rem;
+  color: #6a6154;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.steak-gauge-labels .is-target {
+  color: var(--copper);
+  font-weight: 700;
+}
+
+/* Les deux faces : saisir les deux → cuisson régulière */
+.steak-faces {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.steak-face {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+}
+.steak-face-name {
+  color: #6a6154;
+  white-space: nowrap;
+}
+.steak-face-bar {
+  flex: 1;
+  height: 7px;
+  border-radius: 4px;
+  background: #d9cfba;
+  overflow: hidden;
+}
+.steak-face-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #b6414a, #8a4a30 55%, #4f2f1e);
+  transition: width 0.09s linear;
+}
+
+.steak-hint {
+  margin: 0 0 12px;
+  font-style: italic;
+  font-size: 0.78rem;
+  color: #4a443b;
+  min-height: 2.2em;
+}
+
+.steak-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.steak-actions .btn {
+  flex: 1;
+}
+
+/* Bouton d'accent cuivré (plein) — l'envoi, la relance */
+.btn-primary {
+  background: var(--copper);
+  color: #16130f;
+  border-color: var(--copper);
+  font-weight: 700;
+}
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  background: #cf8945;
+  color: #16130f;
+}
+
+.steak-result {
+  margin-top: 4px;
+}
+.steak-stars {
+  font-size: 1.7rem;
+  letter-spacing: 0.1em;
+  color: #e0a53c;
+}
+.steak-stars-off {
+  color: rgba(35, 32, 27, 0.22);
+}
+.steak-result-title {
+  margin: 4px 0 2px;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.steak-result.is-ok .steak-result-title {
+  color: #3f7d38;
+}
+.steak-result.is-ko .steak-result-title {
+  color: #b23a2a;
+}
+.steak-result-msg {
+  margin: 0 0 14px;
+  font-size: 0.8rem;
+  color: #4a443b;
+}
+
 .skills-ticket .ticket-kicker {
   font-size: 0.84rem;
 }
@@ -1992,6 +2172,16 @@ canvas {
   .salle-dock {
     right: 10px;
     max-width: calc(100vw - 20px);
+  }
+
+  /* Le HUD du steak passe en bandeau bas (la poêle reste visible au-dessus) */
+  .steak-dock {
+    top: auto;
+    bottom: 64px;
+    right: 50%;
+    transform: translateX(50%);
+    width: calc(100vw - 20px);
+    max-height: 52vh;
   }
 
   .bac-tabs {

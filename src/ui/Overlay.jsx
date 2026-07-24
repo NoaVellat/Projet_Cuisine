@@ -6,6 +6,7 @@ import { SkillsPanel } from './SkillsPanel';
 import { BoardPanel } from './BoardPanel';
 import { ContactPanel } from './ContactPanel';
 import { ChefPanel } from './ChefPanel';
+import { SteakHUD } from './SteakHUD';
 import { sfx } from '../audio/sfx';
 
 const MOBILE_DOCK_PANELS = {
@@ -47,8 +48,12 @@ const HOVER_LABELS = {
   duck: '🦆 Canard de debug — expliquez-lui votre bug',
   lamp: 'La lampe du passe',
   pot: '🍲 Ça mijote…',
-  notes: '🎵 La batterie — jouez un air (métal)',
+  // Les quatre instruments du poste (cf. audio/sfx.js) : chacun son timbre
+  notes: '🎵 Les casseroles — le xylophone de cuivre',
   glass: '🎵 Les bocaux — timbre cristal',
+  knob: '🎹 Le piano de cuisson — une manette, une note',
+  ust: '🥁 Les ustensiles — la batterie du poste',
+  steak: '🥩 Cuire un steak — le mini-jeu du coup de feu',
   veg: '🔪 La mise en place — un légume, une stack',
   salle: '🍽️ La salle — passez les portières',
   bell: '🛎️ Sonnez — le service arrive',
@@ -138,6 +143,11 @@ export function Overlay({ onClassic }) {
           ))}
         </nav>
       )}
+
+      {/* Mini-jeu du steak : bon de commande + jauge de cuisson, docké à droite
+          (le steak, lui, se joue en 3D sur le piano). Monté dès qu'une partie
+          est lancée, quel que soit l'état caméra. */}
+      <SteakHUD />
 
       {/* Accès à la salle du restaurant : sa porte est hors cadre en vue
           d'ensemble, ce repère (DOM, clic fiable) y mène. */}

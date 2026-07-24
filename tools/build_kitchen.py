@@ -113,6 +113,16 @@ MAT = {
     "brass": make_mat("brass", "#c9a349", 0.35, 0.85),
     "herb": make_mat("herb", "#4f8a3a", 0.7),
     "terracotta": make_mat("terracotta", "#b5623a", 0.75),
+    # Piano pro : fonte mate du coupe-feu, creux noir de la niche, bain de friture
+    "cast_iron": make_mat("cast_iron", "#2b2d31", 0.88, 0.35),
+    "cavity": make_mat("cavity", "#17181c", 0.95),
+    "fry_oil": make_mat("fry_oil", "#d9a53c", 0.25, 0.0, "#c07a1e", 0.7),
+    "frite": make_mat("frite", "#e8c25c", 0.7),
+    # Mini-jeu du steak : viande crue (recolorée par R3F pendant la cuisson),
+    # liseré de gras, et l'intérieur mat de la poêle en fonte.
+    "steak_meat": make_mat("steak_meat", "#b23a48", 0.6),
+    "steak_fat": make_mat("steak_fat", "#e6d9c2", 0.55),
+    "skillet_in": make_mat("skillet_in", "#20222a", 0.7, 0.2),
     "room_floor": make_mat("room_floor", "#1a1c22", 0.9),
     "room_wall": make_mat("room_wall", "#2c2f38", 0.9),
     "frost": make_mat("frost", "#dfeaf2", 0.5, 0.0, "#9fc4e0", 0.6),
@@ -220,14 +230,11 @@ def frustum(name, x, y_bottom, z, w1, d1, w2, d2, h, material):
     return o
 
 
-def knife_blade(name, x, y, z, length, material, thickness=0.004):
-    """Lame de couteau de chef : silhouette effilée à plat (bmesh) + épaisseur.
-    Construite dans le plan horizontal (Blender XY), pointe vers +x three.js."""
-    L = length
-    pts = [
-        (0.0, 0.019), (L * 0.5, 0.017), (L * 0.82, 0.011), (L, 0.001),
-        (L * 0.8, -0.012), (L * 0.5, -0.018), (L * 0.2, -0.019), (0.0, -0.018),
-    ]
+def flat_poly(name, pts, x, y, z, material, thickness, bevel=0.0012):
+    """Silhouette 2D pleine, épaissie par SOLIDIFY — la façon la moins chère de
+    faire une lame ou un manche : on décrit un contour, pas un maillage.
+    Construite dans le plan horizontal (Blender XY), longueur vers +x three.js ;
+    le profil monte vers -z three.js (dos de lame) et descend vers +z (fil)."""
     mesh = bpy.data.meshes.new(name)
     bm = bmesh.new()
     verts = [bm.verts.new((px, py, 0.0)) for px, py in pts]
@@ -242,10 +249,34 @@ def knife_blade(name, x, y, z, length, material, thickness=0.004):
     solid.thickness = thickness
     solid.offset = 0
     bev = o.modifiers.new("bevel", "BEVEL")
-    bev.width = 0.0012
+    bev.width = bevel
     bev.segments = 1
     o.data.materials.append(material)
     return o
+
+
+def apply_mods(o):
+    """Applique la pile de modificateurs de `o`.
+
+    Nécessaire avant tout join() : bpy.ops.object.join() ne conserve QUE la pile
+    de l'objet actif et jette celle des autres. Un solidify oublié, et la lame
+    part à l'export en plan d'épaisseur nulle."""
+    bpy.ops.object.select_all(action="DESELECT")
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    for m in list(o.modifiers):
+        bpy.ops.object.modifier_apply(modifier=m.name)
+    return o
+
+
+def knife_blade(name, x, y, z, length, material, thickness=0.004):
+    """Lame de couteau de chef : silhouette effilée à plat, pointe vers +x."""
+    L = length
+    pts = [
+        (0.0, 0.019), (L * 0.5, 0.017), (L * 0.82, 0.011), (L, 0.001),
+        (L * 0.8, -0.012), (L * 0.5, -0.018), (L * 0.2, -0.019), (0.0, -0.018),
+    ]
+    return flat_poly(name, pts, x, y, z, material, thickness)
 
 
 def join(name, parts):
@@ -258,6 +289,76 @@ def join(name, parts):
         bpy.ops.object.join()
     parts[0].name = name
     return parts[0]
+
+
+# ---------- couteaux ----------
+
+def serrated_edge(x_tip, y, teeth, amp, x_heel=0.0):
+    """Fil denté : festons réguliers de la pointe vers le talon. C'est la
+    silhouette qui fait reconnaître un couteau à pain — pas sa longueur."""
+    pts = []
+    for k in range(teeth + 1):
+        t = k / teeth
+        pts.append((x_tip + (x_heel - x_tip) * t, y + (amp if k % 2 else 0.0)))
+    return pts
+
+
+# Chaque type a SA silhouette : dos (du talon vers la pointe) puis fil (de la
+# pointe vers le talon), le contour se referme tout seul. Un couteau à pain
+# n'est pas un couteau de chef rétréci, et un santoku se reconnaît à son bout
+# tombant — sans ça les cinq lames ne sont qu'une même forme à cinq échelles.
+KNIVES = {
+    "office": dict(
+        spine=[(0.0, 0.011), (0.075, 0.010), (0.113, 0.002)],
+        serrated=(0.113, -0.010, 9, 0.0035), handle=0.082, hthick=0.021),
+    "pain": dict(
+        spine=[(0.0, 0.014), (0.185, 0.0135), (0.203, 0.008)],
+        serrated=(0.203, -0.0135, 17, 0.004), handle=0.098, hthick=0.022),
+    "chef": dict(
+        spine=[(0.0, 0.030), (0.10, 0.028), (0.155, 0.021), (0.185, 0.010), (0.20, 0.0)],
+        edge=[(0.16, -0.013), (0.11, -0.017), (0.05, -0.018), (0.0, -0.018)],
+        handle=0.104, hthick=0.024),
+    "santoku": dict(
+        spine=[(0.0, 0.031), (0.09, 0.030), (0.125, 0.027), (0.150, 0.017), (0.163, 0.003)],
+        edge=[(0.152, -0.008), (0.12, -0.014), (0.06, -0.016), (0.0, -0.016)],
+        handle=0.10, hthick=0.023, kullen=6),
+    "trancher": dict(
+        spine=[(0.0, 0.013), (0.15, 0.012), (0.185, 0.006), (0.195, 0.0)],
+        edge=[(0.10, -0.013), (0.0, -0.013)],
+        handle=0.098, hthick=0.022),
+}
+
+
+def western_knife(name, kind):
+    """Couteau occidental complet, monté à plat, TALON À L'ORIGINE et pointe
+    vers +x : mitre pleine, manche galbé à 3 rivets. L'appelant n'a plus qu'à
+    poser l'objet et l'orienter."""
+    K = KNIVES[kind]
+    spine = K["spine"]
+    edge = K["edge"] if "edge" in K else serrated_edge(*K["serrated"])
+    hl, ht = K["handle"], K["hthick"]
+    s0, e0 = spine[0][1], edge[-1][1]  # hauteur de lame au talon
+    parts = [flat_poly(f"{name}_blade", spine + edge, 0, 0, 0, MAT["knife_steel"], 0.0035)]
+    # Mitre pleine : le bloc d'acier entre lame et manche, signature occidentale
+    parts.append(box(f"{name}_bolster", -0.011, 0, -(s0 + e0) / 2,
+                     0.022, ht + 0.002, (s0 - e0) + 0.004, MAT["knife_steel"], bevel=0.004))
+    # Manche galbé : renflé sous les doigts, arrondi au pommeau
+    parts.append(flat_poly(f"{name}_handle", [
+        (-0.004, 0.0165), (-hl * 0.25, 0.0175), (-hl * 0.62, 0.0163), (-hl * 0.88, 0.0128), (-hl, 0.006),
+        (-hl, -0.007), (-hl * 0.88, -0.0138), (-hl * 0.6, -0.0162), (-hl * 0.25, -0.0157), (-0.004, -0.014),
+    ], 0, 0, 0, MAT["knife_handle"], ht, bevel=0.003))
+    # Les 3 rivets : le détail qui dit « couteau de cuisine » au premier regard
+    for k, f in enumerate((0.24, 0.53, 0.82)):
+        parts.append(cyl(f"{name}_rivet_{k}", -hl * f, 0, -0.001, 0.0042, ht + 0.004,
+                         MAT["knife_rivet"], axis="y", vertices=10))
+    # Alvéoles du santoku : posées quasi à fleur de lame (0,7 mm) — assez pour
+    # se voir et pour ne pas z-fighter, trop peu pour faire des bosses.
+    for k in range(K.get("kullen", 0)):
+        parts.append(cyl(f"{name}_kullen_{k}", 0.035 + k * 0.021, 0.0016, 0.006,
+                         0.0062, 0.0018, MAT["knife_hollow"], axis="y", vertices=12))
+    for p in parts:
+        apply_mods(p)  # cf. apply_mods : join() jetterait les solidify des lames
+    return join(name, parts)
 
 
 # ---------- le poste ----------
@@ -321,27 +422,34 @@ box("board_frame", BO["x"], BO["y"], BO["z"] - 0.005, BO["w"] + 0.05, BO["h"] + 
 box("zone_board", BO["x"], BO["y"], BO["z"] + 0.006, BO["w"], BO["h"], 0.012, MAT["slate"], bevel=0)
 # Le parcours en post-its qui se suivent, chronologiques et ascendants —
 # chaque étape porte une ligne d'explication (retours UX : « TISSEC ?
-# Théodore ? on ne sait pas ce que c'est »).
+# Théodore ? on ne sait pas ce que c'est », « Bac Pro ou BTS ? »).
+#
+# POSTIT_W est calé au maximum que laisse la largeur du tableau : 5 papiers +
+# leur roulis tiennent tout juste dans BO["w"]. À cette taille ils se touchent
+# presque, donc les chevrons « > » d'avant (écrasés entre deux papiers, plus
+# lisibles du tout) cèdent la place à une punaise cuivre par post-it.
 PARCOURS = [
     ("2019", "BAC ES", "bac général\nLycée Colbert"),
-    ("2020", "TISSEC", "chauffage &\nclimatisation"),
+    ("2020", "BAC PRO\nTISSEC", "chauffage &\nclimatisation"),
     ("2023", "THÉODORE", "resto gastro\ndemi-chef"),
     ("2024", "5 MAINS", "resto gastro\nchef de partie"),
     ("2025", "EPITECH", "dev web\nen alternance"),
 ]
-POSTIT_XS = [-0.315, -0.1575, 0.0, 0.1575, 0.315]
-POSTIT_YS = [-0.235, -0.135, -0.035, 0.065, 0.165]
-postits = [text3d("board_title", "LE PARCOURS", BO["x"], BO["y"] + 0.315, BO["z"] + 0.016, 0.042, MAT["copper_text"], extrude=0.002)]
+POSTIT_W = 0.165
+POSTIT_XS = [-0.336, -0.168, 0.0, 0.168, 0.336]
+POSTIT_YS = [-0.245, -0.135, -0.025, 0.085, 0.195]
+postits = [text3d("board_title", "LE PARCOURS", BO["x"], BO["y"] + 0.325, BO["z"] + 0.016, 0.046, MAT["copper_text"], extrude=0.002)]
 for i, (year, label, detail) in enumerate(PARCOURS):
     px_, py_ = BO["x"] + POSTIT_XS[i], BO["y"] + POSTIT_YS[i]
-    postits.append(box(f"postit_{i}", px_, py_, BO["z"] + 0.014, 0.14, 0.14, 0.004,
+    postits.append(box(f"postit_{i}", px_, py_, BO["z"] + 0.014, POSTIT_W, POSTIT_W, 0.004,
                        MAT[f"postit_{i}"], bevel=0, rot=(0, 0.05 - 0.03 * i, 0)))
-    postits.append(text3d(f"postit_txt_{i}", f"{year}\n{label}", px_, py_ + 0.028, BO["z"] + 0.019, 0.019, MAT["ink"], extrude=0.001))
-    postits.append(text3d(f"postit_sub_{i}", detail, px_, py_ - 0.04, BO["z"] + 0.019, 0.0155, MAT["ink"], extrude=0.001))
-    if i < len(PARCOURS) - 1:
-        postits.append(text3d(f"postit_arrow_{i}", ">", (POSTIT_XS[i] + POSTIT_XS[i + 1]) / 2 + BO["x"],
-                              (POSTIT_YS[i] + POSTIT_YS[i + 1]) / 2 + BO["y"], BO["z"] + 0.016, 0.032,
-                              MAT["copper_text"], extrude=0.001))
+    # « BAC PRO / TISSEC » tient sur 3 lignes là où les autres en font 2 : le
+    # bloc reste centré haut, la punaise est reléguée dans le coin pour ne
+    # jamais mordre dessus.
+    postits.append(text3d(f"postit_txt_{i}", f"{year}\n{label}", px_, py_ + 0.031, BO["z"] + 0.019, 0.0225, MAT["ink"], extrude=0.001))
+    postits.append(text3d(f"postit_sub_{i}", detail, px_, py_ - 0.049, BO["z"] + 0.019, 0.0182, MAT["ink"], extrude=0.001))
+    postits.append(cyl(f"postit_pin_{i}", px_ - POSTIT_W / 2 + 0.018, py_ + POSTIT_W / 2 - 0.018, BO["z"] + 0.021,
+                       0.007, 0.008, MAT["copper"], axis="z", vertices=12))
 join("board_parcours", postits)
 
 # ---------- étagère + livre (zone About) ----------
@@ -460,8 +568,14 @@ MAT["glass"] = make_mat("glass", "#12161a", 0.08, 0.4)
 # reflet se réduit à un petit éclat net au lieu d'un voile laiteux opaque).
 MAT["door_window"] = make_mat("door_window", "#e4eef4", 0.04, 0.0, alpha=0.12)
 MAT["rubber"] = make_mat("rubber", "#17181b", 0.85)
-MAT["knife_steel"] = make_mat("knife_steel", "#d3d7dc", 0.18, 0.9)
+# Acier des lames : metalness volontairement modérée. À 0,9 une lame plaquée au
+# mur, loin de la rampe de hotte, n'a rien à réfléchir et vire au gris sale —
+# même piège que copper_text. À 0,45 elle capte la lumière diffuse et redevient
+# de l'acier clair.
+MAT["knife_steel"] = make_mat("knife_steel", "#dde1e6", 0.26, 0.45)
 MAT["knife_handle"] = make_mat("knife_handle", "#2a2c30", 0.55, 0.1)
+MAT["knife_rivet"] = make_mat("knife_rivet", "#e9ecef", 0.3, 0.7)
+MAT["knife_hollow"] = make_mat("knife_hollow", "#b4bac1", 0.3, 0.85)
 
 RAIL_Z = -0.41  # barres murales, 4 cm devant le mur
 
@@ -499,25 +613,32 @@ for i, r in enumerate(sizes):
     if i + 1 < len(sizes):
         px += r + sizes[i + 1] + 0.04
 
-# Barre d'ustensiles : louche, écumoire, spatule bois, fouet
+# Barre d'ustensiles : louche, écumoire, spatule bois, fouet — et deuxième
+# famille d'instruments du poste après les casseroles. Chacun est sa propre
+# zone (zone_ust_*) : au clic il sonne dans son timbre (cf. audio/sfx.js,
+# utensilHit) et se balance sur son crochet. Comme pour les casseroles, le
+# 1er objet du join est le crochet → son origine sert de pivot au pendule.
 UT_RAIL_Y = 1.58
 UZ = -0.4
-ut = rail("utrail", -1.98, -1.28, UT_RAIL_Y)
+join("utrail", rail("utrail", -1.98, -1.28, UT_RAIL_Y))
 
-ut.append(hook("louche_hook", -1.86, UT_RAIL_Y))
-ut.append(cyl("louche_handle", -1.86, 1.425, UZ, 0.006, 0.24, MAT["inox_bright"], rot=(0, -0.05, 0), vertices=10))
-ut.append(sphere("louche_bowl", -1.87, 1.29, UZ, 0.042, MAT["inox_bright"], scale=(1, 1, 0.62)))
+louche = [hook("louche_hook", -1.86, UT_RAIL_Y)]
+louche.append(cyl("louche_handle", -1.86, 1.425, UZ, 0.006, 0.24, MAT["inox_bright"], rot=(0, -0.05, 0), vertices=10))
+louche.append(sphere("louche_bowl", -1.87, 1.29, UZ, 0.042, MAT["inox_bright"], scale=(1, 1, 0.62)))
+join("zone_ust_0", louche)
 
-ut.append(hook("ecumoire_hook", -1.66, UT_RAIL_Y))
-ut.append(cyl("ecumoire_handle", -1.66, 1.425, UZ, 0.006, 0.24, MAT["inox_bright"], rot=(0, 0.04, 0), vertices=10))
-ut.append(cyl("ecumoire_disc", -1.655, 1.29, UZ, 0.046, 0.008, MAT["inox_bright"], axis="z", vertices=24))
+ecumoire = [hook("ecumoire_hook", -1.66, UT_RAIL_Y)]
+ecumoire.append(cyl("ecumoire_handle", -1.66, 1.425, UZ, 0.006, 0.24, MAT["inox_bright"], rot=(0, 0.04, 0), vertices=10))
+ecumoire.append(cyl("ecumoire_disc", -1.655, 1.29, UZ, 0.046, 0.008, MAT["inox_bright"], axis="z", vertices=24))
+join("zone_ust_1", ecumoire)
 
-ut.append(hook("spatule_hook", -1.47, UT_RAIL_Y))
-ut.append(cyl("spatule_handle", -1.47, 1.44, UZ, 0.007, 0.2, MAT["wood"], rot=(0, -0.03, 0), vertices=10))
-ut.append(box("spatule_blade", -1.472, 1.3, UZ, 0.055, 0.1, 0.012, MAT["wood"], bevel=0.004))
+spatule = [hook("spatule_hook", -1.47, UT_RAIL_Y)]
+spatule.append(cyl("spatule_handle", -1.47, 1.44, UZ, 0.007, 0.2, MAT["wood"], rot=(0, -0.03, 0), vertices=10))
+spatule.append(box("spatule_blade", -1.472, 1.3, UZ, 0.055, 0.1, 0.012, MAT["wood"], bevel=0.004))
+join("zone_ust_2", spatule)
 
-ut.append(hook("fouet_hook", -1.31, UT_RAIL_Y))
-ut.append(cyl("fouet_handle", -1.31, 1.485, UZ, 0.0075, 0.12, MAT["inox_bright"], vertices=10))
+fouet = [hook("fouet_hook", -1.31, UT_RAIL_Y)]
+fouet.append(cyl("fouet_handle", -1.31, 1.485, UZ, 0.0075, 0.12, MAT["inox_bright"], vertices=10))
 # Cage du fouet : 3 boucles de tore elliptiques croisées à 60°
 for k in range(3):
     bpy.ops.mesh.primitive_torus_add(
@@ -530,45 +651,46 @@ for k in range(3):
     o.scale = (1, 1.7, 1)                       # ellipse allongée (local Y)
     o.rotation_euler = (1.5708, 0, k * 1.047)   # dressée puis tournée de 60°
     o.data.materials.append(MAT["inox_bright"])
-    ut.append(o)
-join("utensils", ut)
+    fouet.append(o)
+join("zone_ust_3", fouet)
 
-# Vitrine à couteaux japonais : mur nu à gauche du piano (seul pan de mur du
-# poste resté sans décor). PAS de vitre en verre : à cet angle rasant, un
-# panneau transparent even à faible opacité réfléchissait bien trop la lumière
-# (Fresnel) et cachait les lames plus qu'il ne les montrait — un présentoir à
-# l'air libre sur fond sombre (contraste net avec l'acier clair) se voit bien
-# mieux et sonne plus juste pour une cuisine pro (barre aimantée ouverte).
-# Couteaux montés à plat contre le fond (silhouette effilée de knife_blade,
-# cf. plus haut) — la fonction dessine la lame posée à plat (three.js XZ) ;
-# une rotation de 90° autour de X la redresse contre le mur (three.js XY,
-# face au spectateur), même bascule que cyl(axis="z"). Chaque lame reprend
-# aussi le mors + manche + pommeau du couteau du chef (cf. plus bas), pour
-# une silhouette de couteau bien lisible plutôt qu'un simple manche-tube.
-VIT_X, VIT_Y, VIT_Z = -2.75, 1.78, L["wall"]["z"]
-VIT_W, VIT_H = 0.52, 0.34
-vit = [
-    box("vitrine_frame", VIT_X, VIT_Y, VIT_Z + 0.015, VIT_W, VIT_H, 0.03, MAT["wood_dark"], bevel=0.006),
-    box("vitrine_back", VIT_X, VIT_Y, VIT_Z + 0.031, VIT_W - 0.05, VIT_H - 0.05, 0.008, MAT["dark_metal"]),
+# Barre aimantée : les couteaux du chef à nu contre le mur, au-dessus du piano.
+# Ni vitrine ni verre — à cet angle rasant un panneau transparent, même très peu
+# opaque, réfléchissait plus qu'il ne montrait (Fresnel) et cachait les lames.
+# L'acier nu sur le carrelage clair se lit bien mieux, et c'est de toute façon
+# ce qu'on trouve dans une vraie cuisine pro. Calée à la hauteur de la barre à
+# ustensiles : les deux ne font plus qu'une seule ligne d'outils au mur.
+#
+# Montage : western_knife construit à plat, pointe vers +x. Rx(90°) dresse la
+# lame face au spectateur, Ry(-90°) la fait pivoter DANS le plan du mur, pointe
+# en l'air (rotation Blender Y = rotation three.js Z, au signe près) — d'où le
+# couple d'angles. Le `lean` incline chaque couteau de quelques degrés : cinq
+# lames parfaitement parallèles font décalcomanie.
+BAR_X0, BAR_X1 = -2.90, -2.10
+BAR_Y, BAR_Z = UT_RAIL_Y, -0.425
+KNIFE_Z = -0.404  # plaqués sur la face avant de la barre
+bar = [box("knifebar_body", (BAR_X0 + BAR_X1) / 2, BAR_Y, BAR_Z,
+           BAR_X1 - BAR_X0, 0.05, 0.035, MAT["inox_bright"], bevel=0.004)]
+for k, bx in enumerate((BAR_X0 + 0.06, BAR_X1 - 0.06)):
+    bar.append(cyl(f"knifebar_mount_{k}", bx, BAR_Y, BAR_Z - 0.028, 0.007, 0.03,
+                   MAT["inox_dark"], axis="z", vertices=10))
+join("knifebar", bar)
+
+# (type, x, décalage du talon, inclinaison) — le talon plus ou moins haut fait
+# les pointes en escalier de la photo de référence.
+KNIFE_SET = [
+    ("office", -2.82, -0.030, 0.030),
+    ("pain", -2.66, 0.004, -0.020),
+    ("chef", -2.50, 0.012, 0.015),
+    ("santoku", -2.34, -0.004, -0.030),
+    ("trancher", -2.18, -0.020, 0.020),
 ]
-# (décalage manche, décalage hauteur, longueur lame) — de la plus courte
-# (petty) à la plus longue (gyuto), rangées du haut vers le bas, mors alignés
-# à gauche façon barre aimantée.
-KNIVES = [(-0.15, 0.115, 0.12), (-0.155, 0.035, 0.155),
-          (-0.16, -0.045, 0.185), (-0.165, -0.125, 0.215)]
-KZ = VIT_Z + 0.045  # juste devant le fond sombre
-for i, (dx, dy, blen) in enumerate(KNIVES):
-    hx, hy = VIT_X + dx, VIT_Y + dy
-    blade = knife_blade(f"vitrine_knife_{i}", hx, hy, KZ, blen, MAT["knife_steel"], thickness=0.0035)
-    blade.rotation_euler = (1.5708, 0, 0.015 * (i - 1.5))
-    vit.append(blade)
-    vit.append(cyl(f"vitrine_bolster_{i}", hx - 0.006, hy + 0.008, KZ, 0.013, 0.016,
-                   MAT["knife_steel"], axis="x", vertices=12))
-    vit.append(cyl(f"vitrine_handle_{i}", hx - 0.059, hy + 0.008, KZ, 0.011, 0.07,
-                   MAT["knife_handle"], axis="x", vertices=12))
-    vit.append(sphere(f"vitrine_pommel_{i}", hx - 0.094, hy + 0.008, KZ, 0.012,
-                      MAT["knife_handle"], scale=(0.7, 1, 1)))
-join("vitrine_couteaux", vit)
+for kind, kx, dy, lean in KNIFE_SET:
+    # préfixe `wallknife_` distinct du couteau du billot (« knife ») : le filtre
+    # d'ombres NO_WALL_SHADOW côté R3F teste des noms, pas des objets
+    o = western_knife(f"wallknife_{kind}", kind)
+    o.location = loc(kx, BAR_Y + dy - 0.025, KNIFE_Z)
+    o.rotation_euler = (1.5708, -1.5708 + lean, 0)
 
 # Torchon plié sur sa barre, flanc gauche du poste (suit la largeur de la table)
 SIDE = -C["w"] / 2
@@ -677,24 +799,121 @@ text3d("epitech_mark", "EPITECH", T["x"], TOP_Y + 0.045, T["z"] + 0.077, 0.032, 
 # ---------- le piano de cuisson (avec four) ----------
 
 PI = L["piano"]
-MAT["oven_glow"] = make_mat("oven_glow", "#ff9540", 0.6, 0.0, "#ff8c3a", 1.6)
+# Porte de four : UN SEUL panneau opaque, albédo sombre + émission ambre —
+# pas de vitre transparente séparée. La version « verre translucide devant une
+# lueur vive » cumulait trois pièges : faces coplanaires (z-fighting en
+# mouvement), tri des transparents, et bloom sur un émissif saturé qui virait au
+# rectangle orange fluo. Un panneau sombre légèrement émissif lit comme un four
+# tiède derrière sa vitre, sans aucun de ces artefacts. L'intensité réelle est
+# pilotée par useFrame (manette 4 = four) autour d'une valeur basse.
+MAT["oven_glow"] = make_mat("oven_glow", "#1c120c", 0.35, 0.2, "#e0721e", 0.5)
 sx, sz = PI["x"], PI["z"]
 PTOP = PI["h"] + 0.06  # dessus du piano
 
-box("piano_body", sx, PI["h"] / 2, sz, PI["w"], PI["h"], PI["d"], MAT["dark_metal"], bevel=0.008)
+# Caisson. La niche de droite est un VRAI trou — montant, linteau, socle — et
+# pas un rectangle noir peint sur la façade : sans booléen, un simple panneau
+# sombre posé au fond disparaît DANS le volume plein du meuble. C'est ce creux
+# qui donne l'échelle d'un piano pro ; 1,34 m de façade uniformément fermée ne
+# lirait plus que comme un très gros meuble.
+BAY = PI["bay"]
+HW = PI["w"] / 2
+
+
+def piano_block(name, dx0, dx1, y0, y1, material=None, depth=None):
+    return box(name, sx + (dx0 + dx1) / 2, (y0 + y1) / 2, sz, dx1 - dx0, y1 - y0,
+               depth or PI["d"], material or MAT["dark_metal"], bevel=0.008)
+
+
+piano_block("piano_body", -HW, BAY["dx0"], 0, PI["h"])                  # bloc de gauche (four)
+piano_block("piano_upright", BAY["dx1"], HW, 0, PI["h"])                # montant d'extrémité
+piano_block("piano_lintel", BAY["dx0"], BAY["dx1"], BAY["y1"], PI["h"])  # linteau (porte les manettes)
+piano_block("piano_plinth", BAY["dx0"], BAY["dx1"], 0, BAY["y0"])       # socle
 box("piano_top", sx, PI["h"] + 0.02, sz, PI["w"] + 0.02, 0.04, PI["d"] + 0.02, MAT["iron"], bevel=0.005)
 box("piano_splash", sx, PI["h"] + 0.13, sz - PI["d"] / 2 + 0.02, PI["w"], 0.18, 0.03, MAT["inox_dark"], bevel=0.004)
 
-# 4 feux : grille + anneau de flamme émissif (vacille côté R3F)
+# 4 feux vifs, groupés à GAUCHE du plan de cuisson : sur un piano pro les
+# brûleurs ne sont pas répartis sur toute la longueur, ils occupent un poste et
+# laissent la place au coupe-feu et à la friteuse.
 for k, (dx, dz) in enumerate(PI["burners"]):
     cyl(f"grate_{k}", sx + dx, PTOP + 0.01, sz + dz, 0.1, 0.018, MAT["iron"], vertices=20)
     cyl(f"flame_{k}", sx + dx, PTOP + 0.022, sz + dz, 0.06, 0.012, MAT["flame"], vertices=16)
 
-# Le four : porte vitrée, poignée cuivre, lueur chaude à l'intérieur
-box("oven_frame", sx, 0.42, sz + PI["d"] / 2 - 0.005, 0.74, 0.46, 0.03, MAT["inox_bright"], bevel=0.006)
-box("oven_glass", sx, 0.43, sz + PI["d"] / 2 + 0.012, 0.56, 0.3, 0.012, MAT["glass"], bevel=0)
-box("oven_glow", sx, 0.43, sz + PI["d"] / 2 - 0.02, 0.5, 0.24, 0.01, MAT["oven_glow"], bevel=0)
-cyl("oven_handle", sx, 0.69, sz + PI["d"] / 2 + 0.035, 0.014, 0.62, MAT["copper"], axis="x", vertices=12)
+# Le coupe-feu : la grande plaque de fonte pleine, signature du piano français.
+# Ses couronnes concentriques s'enlèvent pour approcher la casserole du foyer —
+# c'est le point le plus chaud du poste, d'où la lueur au centre.
+CF = PI["coupefeu"]
+cfx = sx + CF["dx"]
+box("coupefeu_plate", cfx, PTOP + 0.012, sz, CF["w"], 0.024, CF["d"], MAT["cast_iron"], bevel=0.004)
+for k, r in enumerate((0.075, 0.112)):
+    cyl(f"coupefeu_ring_{k}", cfx, PTOP + 0.026, sz, r, 0.005, MAT["iron"], vertices=28)
+cyl("coupefeu_glow", cfx, PTOP + 0.0275, sz, 0.052, 0.004, MAT["oven_glow"], vertices=24)
+
+# La friteuse encastrée, à l'extrémité droite : cuve, bain d'huile (émissif,
+# il frémit côté R3F) et panier à frites suspendu par son anse.
+FR = PI["friteuse"]
+frx = sx + FR["dx"]
+box("friteuse_tank", frx, PTOP + 0.006, sz, FR["w"], 0.024, FR["d"], MAT["inox_dark"], bevel=0.003)
+box("friteuse_glow", frx, PTOP + 0.019, sz, FR["w"] - 0.045, 0.006, FR["d"] - 0.045, MAT["fry_oil"], bevel=0)
+basket = [
+    box("friteuse_basket", frx, PTOP + 0.055, sz, FR["w"] - 0.10, 0.07, FR["d"] - 0.13, MAT["inox_bright"], bevel=0.004),
+    # Anse en étrier : deux montants + une barre, pas de rotation à gérer
+    cyl("friteuse_bail", frx, PTOP + 0.145, sz, 0.006, FR["w"] - 0.12, MAT["iron"], axis="x", vertices=8),
+]
+for s_ in (-1, 1):
+    basket.append(cyl(f"friteuse_bail_arm_{s_}", frx + s_ * (FR["w"] - 0.12) / 2, PTOP + 0.115, sz, 0.005, 0.06, MAT["iron"], vertices=8))
+for k in range(6):
+    fx = frx + (k % 3 - 1) * 0.045 + random.uniform(-0.008, 0.008)
+    fz = sz + (k // 3 - 0.5) * 0.06 + random.uniform(-0.01, 0.01)
+    basket.append(box(f"frite_{k}", fx, PTOP + 0.088, fz, 0.012, 0.012, 0.05, MAT["frite"],
+                      bevel=0, rot=(0, random.uniform(-0.6, 0.6), 0)))
+join("friteuse_panier", basket)
+
+# Le four : cadre inox, porte-hublot en un seul panneau, poignée cuivre.
+# ATTENTION à l'empilement en z : `oven_frame` est un panneau PLEIN (pas un
+# cadre évidé), sa face avant est à FRONT_Z+0.01. La porte-hublot doit donc
+# passer DEVANT, avec une marge nette — surtout aucune face coplanaire, sinon
+# ça clignote en mouvement. Un seul panneau opaque (albédo sombre + émission),
+# insetté par rapport au cadre pour que l'inox fasse une bordure de hublot.
+OV = PI["oven"]
+ovx = sx + OV["dx"]
+FRONT_Z = sz + PI["d"] / 2
+box("oven_frame", ovx, 0.42, FRONT_Z - 0.005, OV["w"], 0.46, 0.03, MAT["inox_bright"], bevel=0.006)
+box("oven_glow", ovx, 0.43, FRONT_Z + 0.02, OV["w"] - 0.14, 0.30, 0.01, MAT["oven_glow"], bevel=0.004)
+cyl("oven_handle", ovx, 0.69, FRONT_Z + 0.045, 0.014, OV["w"] - 0.06, MAT["copper"], axis="x", vertices=12)
+
+# La niche : fond sombre au fond du trou, tablette, et la réserve du service
+bayx = sx + (BAY["dx0"] + BAY["dx1"]) / 2
+bayw = BAY["dx1"] - BAY["dx0"]
+niche = [
+    box("bay_back", bayx, (BAY["y0"] + BAY["y1"]) / 2, sz - PI["d"] / 2 + 0.02,
+        bayw, BAY["y1"] - BAY["y0"], 0.02, MAT["cavity"], bevel=0),
+    box("bay_shelf", bayx, 0.40, sz, bayw - 0.01, 0.016, PI["d"] - 0.08, MAT["inox_dark"], bevel=0.003),
+]
+# Bacs gastro posés SUR la tablette (dessus à 0,408) et marmite de réserve
+# rangée DESSOUS : la niche est la desserte du poste, pas une vitrine vide.
+for k in range(2):
+    niche.append(box(f"bay_bac_{k}", bayx - 0.11, 0.424 + k * 0.036, sz + 0.02,
+                     0.2, 0.032, 0.15, MAT["inox_bright"], bevel=0.004))
+niche.append(cyl("bay_stack", bayx + 0.15, 0.25, sz + 0.02, 0.055, 0.25, MAT["inox_dark"], vertices=18))
+join("piano_niche", niche)
+
+# Les manettes — et « le piano » de cuisson finit par mériter son nom : chaque
+# manette est une touche (gamme pentatonique, cf. audio/sfx.js pianoKey), et
+# pousse son foyer au passage. Sept manettes : 4 feux, le coupe-feu, la
+# friteuse, le four. Elles vivent dans la bande libre entre la poignée du four
+# (y≈0.70) et le dessus du piano (y≈0.88) ; le repère cuivre montre le quart
+# de tour. L'ORDRE compte, il est repris tel quel dans Kitchen.jsx.
+KNOB_Y = 0.785
+KNOB_Z = FRONT_Z
+box("piano_knob_rail", sx, KNOB_Y, KNOB_Z - 0.006, PI["w"] - 0.05, 0.105, 0.02, MAT["inox_dark"], bevel=0.004)
+for k, dx in enumerate(PI["knobs"]):
+    kx = sx + dx
+    join(f"zone_knob_{k}", [
+        # 1er objet = la collerette, centrée sur l'axe → origine = pivot du quart de tour
+        cyl(f"knob_base_{k}", kx, KNOB_Y, KNOB_Z + 0.012, 0.032, 0.016, MAT["inox_bright"], axis="z", vertices=18),
+        cyl(f"knob_body_{k}", kx, KNOB_Y, KNOB_Z + 0.028, 0.026, 0.022, MAT["dark_metal"], axis="z", vertices=18),
+        box(f"knob_mark_{k}", kx, KNOB_Y + 0.013, KNOB_Z + 0.041, 0.006, 0.026, 0.006, MAT["copper"], bevel=0),
+    ])
 
 # La marmite du service sur le feu arrière-gauche (cliquable : bloup)
 px_, pz_ = sx + PI["burners"][0][0], sz + PI["burners"][0][1]
@@ -708,11 +927,33 @@ for s_ in (-1, 1):
     pot.append(cyl(f"pot_handle_{s_}", px_ + s_ * 0.128, PTOP + 0.23, pz_, 0.009, 0.05, MAT["iron"], axis="x", vertices=8))
 join("zone_pot", pot)
 
-# Petite casserole inox (feu arrière-droit) et sauteuse cuivre (feu avant-droit)
+# Petite casserole inox (feu arrière-droit) et sauteuse cuivre (feu avant-GAUCHE :
+# déplacée du feu avant-droit pour libérer la place du mini-jeu du steak).
 cyl("piano_saucepan", sx + PI["burners"][1][0], PTOP + 0.065, sz + PI["burners"][1][1], 0.07, 0.09, MAT["inox_bright"], vertices=22)
 cyl("piano_saucepan_handle", sx + PI["burners"][1][0] + 0.14, PTOP + 0.1, sz + PI["burners"][1][1], 0.007, 0.14, MAT["iron"], axis="x", vertices=8)
-cyl("piano_pan", sx + PI["burners"][3][0], PTOP + 0.05, sz + PI["burners"][3][1], 0.085, 0.07, MAT["copper_pot"], vertices=24)
-cyl("piano_pan_handle", sx + PI["burners"][3][0] + 0.17, PTOP + 0.07, sz + PI["burners"][3][1], 0.008, 0.16, MAT["iron"], axis="x", vertices=8)
+cyl("piano_pan", sx + PI["burners"][2][0], PTOP + 0.05, sz + PI["burners"][2][1], 0.085, 0.07, MAT["copper_pot"], vertices=24)
+cyl("piano_pan_handle", sx + PI["burners"][2][0] - 0.17, PTOP + 0.07, sz + PI["burners"][2][1], 0.008, 0.16, MAT["iron"], axis="x", vertices=8)
+
+# ---------- mini-jeu : cuire le steak (feu avant-droit) ----------
+# La poêle en fonte + le steak, sur le feu le plus en vue du piano (avant-droit,
+# près de la caméra). Le steak est une zone à part (zone_steak) : au clic il
+# lance/retourne la cuisson, R3F recolore la viande selon le côté cuit et le
+# fait sauter dans la poêle (cf. Kitchen.jsx, useSteakStore). Nommé pour être
+# ciblé isolément — la poêle reste décor, seule la viande est « jouable ».
+STK_X, STK_Z = sx + PI["burners"][3][0], sz + PI["burners"][3][1]
+skillet = [
+    cyl("skillet_body", STK_X, PTOP + 0.018, STK_Z, 0.105, 0.03, MAT["cast_iron"], vertices=28),
+    cyl("skillet_floor", STK_X, PTOP + 0.03, STK_Z, 0.092, 0.008, MAT["skillet_in"], vertices=28),
+    cyl("skillet_handle", STK_X + 0.2, PTOP + 0.03, STK_Z, 0.011, 0.17, MAT["cast_iron"], axis="x", vertices=10),
+]
+join("skillet", skillet)
+# Le steak : pavé bombé, posé à plat dans la poêle. Origine au centre → pivot
+# franc pour le saut/retournement. Un liseré de gras clair sur un bord.
+steak = [
+    box("steak_meat", STK_X, PTOP + 0.05, STK_Z, 0.115, 0.028, 0.09, MAT["steak_meat"], bevel=0.012),
+    box("steak_fat", STK_X, PTOP + 0.05, STK_Z + 0.052, 0.115, 0.024, 0.012, MAT["steak_fat"], bevel=0.006),
+]
+join("zone_steak", steak)
 
 # ---------- décor de vraie cuisine ----------
 

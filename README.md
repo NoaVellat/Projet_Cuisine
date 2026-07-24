@@ -169,6 +169,10 @@ Plats Signatures · Les Ingrédients · La Brigade · Le Chef · Réservations.
 | Élément | Interaction | Nœud |
 |---|---|---|
 | 🎵 4 casseroles suspendues | **Xylophone** — clic = note (sol/la♯/do/ré♯) + balancement pendule | `zone_note_0..3` |
+| 🎵 2 bocaux à épices | Timbre **cristal** (sinus purs, longue traîne) | `zone_glass_0..1` |
+| 🎹 7 manettes du piano | **Le piano de cuisson joue du piano** — corde frappée (inharmonicité), gamme pentatonique de do ; quart de tour + coup de feu sur le foyer correspondant (0-3 = feux vifs, 4 = coupe-feu, 5 = friteuse, 6 = four) | `zone_knob_0..6` |
+| 🥁 4 ustensiles de la barre | **Percussion** — gong (louche), cymbale (écumoire), bloc de bois (spatule), shaker (fouet) + pendule propre à chacun | `zone_ust_0..3` |
+| 🥩 **Mini-jeu : cuire le steak** | Poêle du feu avant-droit — clic = lance une commande (cuisson au sort), clic = **retourne** (saisir les 2 faces), *Envoyer* au bon moment. La viande change de couleur selon la face saisie, saute à chaque retournement, grésil + feu qui pousse. Barème : justesse de cuisson **et** régularité de saisie (⭐×3). Cf. [useSteakStore](src/game/useSteakStore.js), [SteakHUD](src/ui/SteakHUD.jsx) | `zone_steak` |
 | 🔪 5 légumes sur le billot | Clic = ouvre la famille de skills (couleur assortie) | `zone_veg_0..4` |
 | 💻 Laptop (coin droit) | Écran-terminal animé (typing du build) · clic → **mode classique** | `zone_laptop` |
 | 🦆 Canard bleu Epitech | Clic → coin-coin · se dandine en continu | `zone_duck` |
@@ -182,15 +186,38 @@ Plats Signatures · Les Ingrédients · La Brigade · Le Chef · Réservations.
 **Légume → stack (couleurs partagées bac/légume/UI) :** tomate=Frontend (rouge),
 courgette=Backend (vert), citron=DevOps (jaune), oignon=MERN (crème), carotte=Soft (orange).
 
-**Animations en continu (`useFrame` de Kitchen.jsx) :** flammes des 4 feux +
-lueur du four qui vacillent (2 sinus non harmoniques), vapeur de la marmite/sauteuse
+**Animations en continu (`useFrame` de Kitchen.jsx) :** les 4 foyers du piano
+pro — feux vifs, coupe-feu (fonte, respiration lente), friteuse (frémissement
+serré) et four (lueur ambre à travers la vitre fumée) — qui vacillent chacun à
+son rythme et montent quand on pousse leur manette, vapeur de la marmite/sauteuse
 (sphères `meshBasic` translucides en boucle), canard qui se dandine, couteau qui
-hache (rafale/pause), casseroles qui pendulent après frappe, terminal redessiné à 8 fps.
+hache (rafale/pause), casseroles et ustensiles qui pendulent après frappe (une
+inertie par ustensile, `UST_SWING`), terminal redessiné à 8 fps.
 
-**Audio ([sfx.js](src/audio/sfx.js)) :** tout synthétisé. AudioContext créé au 1er
-geste (autoplay policy). Orchestration centralisée dans un `subscribe` zustand
-(App.jsx). Bouton muet dans le HUD. Ambiance = souffle de hotte (bruit brun) +
-frémissement de marmite (bulles aléatoires).
+**Audio ([sfx.js](src/audio/sfx.js)) :** tout synthétisé, zéro asset. AudioContext
+créé au 1er geste (autoplay policy). Orchestration centralisée dans un `subscribe`
+zustand (App.jsx). Bouton muet dans le HUD. Ambiance = souffle de hotte (bruit brun)
++ frémissement de marmite (bulles aléatoires).
+
+Quatre familles d'instruments, quatre synthèses distinctes — c'est le rapport
+entre partiels qui fait entendre la matière : `struck()` additionne des partiels
+amortis (multiples irrationnels = métal, entiers = note franche, et plus un
+partiel est haut plus il meurt vite) pour le cuivre, le verre, le gong et la
+cymbale ; `pianoKey()` y ajoute l'inharmonicité d'une corde raide
+(`f·n·√(1+Bn²)`), une attaque de 4 ms et un feutre de marteau ; le bloc de bois
+et le shaker, eux, ne sont **que** du bruit filtré — pas de note du tout. Le
+mini-jeu du steak ajoute un **grésil bouclé** (`sizzleStart/Level/Stop` : bruit
+filtré tenu + crépitements aléatoires, qui s'affole vers le cramé), un « flac »
+au retournement, un carillon à l'envoi réussi et un buzzer au raté.
+
+**Mini-jeu du steak** ([useSteakStore.js](src/game/useSteakStore.js)) : la
+cuisson temps réel vit dans le `useFrame` de Kitchen.jsx (source de vérité, une
+chaleur par face selon la face en contact) ; le store n'en reçoit qu'un miroir
+throttlé (~12 Hz) pour le HUD. `round`/`flips` resynchronisent la boucle de
+rendu sans coupler la logique à l'origine du clic (scène 3D **ou** boutons DOM).
+Le HUD est un bon de commande docké à droite (même DA que les tickets du passe) ;
+quitter le poste (Échap, retour, autre zone) coupe la partie et le grésil via un
+`subscribe` dans App.jsx.
 
 ---
 
